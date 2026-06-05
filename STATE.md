@@ -22,6 +22,7 @@ Tjenester som kjører og er bekreftet fungerende (med dato for siste verifiserin
 | Google Calendar (skriv) | 🟢 | 2026-06-05 | OAuth re-auth: write-scope + `/calendar-auth`-callback (db-api) + ny refresh-token. PT→kalender aktiv. |
 | Styrkelogg (`/strength`) | 🟢 | 2026-06-05 | Ekte logging → `strength_session`-tabell (JSONB-sett). Faner: I dag / Stats / Program. |
 | PT øktvalg-regelbok | 🟢 | 2026-06-05 | `okt_logikk.evaluate_request` (Del D/E/F), 71 grønne tester. Live: `/training?action=evaluate`. |
+| Public state-mirror | 🟢 | 2026-06-05 | `mayo-os-state` (public) · raw-URL 200 · planleggeren leser den |
 
 ## 🟡 Pågår / delvis
 - **#2 Ekte recovery + «uka så langt» i `/strength` «I dag»** — gjenstår. Skjermen viser fortsatt mock (51 %/uke). Skal kobles til `/whoop` + `/strava`. Ekte recovery vises allerede riktig på `/health → Program`.
@@ -61,4 +62,4 @@ Beskjeder fra Elmars til claude.ai som påvirker neste planlegging.
 - **Styrkelogg:** logging er EKTE (Postgres). Stats/PR/volum bygges på loggførte økter (tomt til Mayo logger). Recovery/uke/anbefaling i `/strength` er fortsatt MOCK (#2 gjenstår). Ekte recovery: `/health → Program`.
 - **Regelboka (øktvalg)** er implementert deterministisk + testet (71 grønne) + live: `GET /training?action=evaluate&q=<forespørsel>` bruker dagens ekte gating. Tung markløft nedgraderes til RDL 4×6 RIR3 utenfor Q4-peak-fasen.
 - **Gmail re-auth** venter på Mayos consent-klikk.
-- **Public state-mirror (`mayo-os-state`):** PENDING — venter på Mayos godkjenning av publisering (steg 3 i setup-flyt).
+- **Public state-mirror (`mayo-os-state`):** 🟢 live — les STATE.md på `raw.githubusercontent.com/mrmayooran-Ai/mayo-os-state/main/STATE.md`.
