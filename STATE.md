@@ -23,7 +23,7 @@ Tjenester som kjører og er bekreftet fungerende (med dato for siste verifiserin
 | Styrkelogg (`/strength`) | 🟢 | 2026-06-06 | v3.1: Mayos EKTE øvelsesbibliotek (17 øvelser) + baselines + PPL×2 + **progresjonsmotor** (dobbel progresjon, justeringsregel, stagnasjonsflagg, «sist:»-tall, coaching-banner pr øvelse). Beholder v3-funksjoner. |
 | Regelbok-sjekk i app | 🟢 | 2026-06-06 | «Sjekk økt mot regelboka» på /strength I dag → /training?action=evaluate (ekte gating+fase). |
 | PT øktvalg-regelbok | 🟢 | 2026-06-06 | **v3.1 forenklet:** markløft fritt + **søvn-gating relaksert** (6-7t nedgraderer ikke grønn dag; <6t = eneste søvn-terskel, §4.1). `okt_logikk`+`gating`, **76 grønne**. + **markløft frekvens-vakt** (<48t siden sist → AVVIS, kilde: styrkeloggen/Vei C). Live: `/training?action=evaluate`. |
-| PT LLM-lag (inc 4) | 🟢 | 2026-06-06 | Daglig motor-kort (PPL×2 + progresjon) + anonymisert LLM-kommentar live på `/strength` + `/training?action=daily`. Kjører på **gratis Gemini 2.5 Flash** (pt-daily) m/ fallback pt-weekly→claude-haiku→motor. Telegram-cron gjenstår. |
+| PT LLM-lag (inc 4) | 🟢 | 2026-06-06 | Daglig motor-kort (PPL×2 + progresjon) + anonymisert LLM-kommentar live på `/strength` + `/training?action=daily`. Kjører på **gratis Gemini 2.5 Flash** (pt-daily) m/ fallback pt-weekly→claude-haiku→motor. **Telegram:** morgenrapportens PT-blokk (send_report) bruker nå v3.1-kortet + Gemini (guardet fallback), live daglig 08:00. |
 | Public state-mirror | 🟢 | 2026-06-05 | `mayo-os-state` (public) · raw-URL 200 · planleggeren leser den |
 
 ## 🟡 Pågår / delvis
@@ -43,6 +43,7 @@ Kjente feil som blokkerer eller irriterer. Med dato oppdaget.
 Nyeste øverst. Format: `hash — beskrivelse (dato)`
 
 **Backend (`mayo-ai-os`):**
+- `b228d9e` — morgenrapportens PT-blokk → v3.1 daglig-kort + Gemini (inc 4 cron) (2026-06-06)
 - `3382e8c` — inc 4: daglig motor-kort + LLM-lag (anonymisert) + /training?action=daily (2026-06-06)
 - `057c782` — markløft frekvens-vakt FØR gating (Vei C styrkelogg) (2026-06-06)
 - `bd3fc77` — relaks søvn-gating v3.1 §4.1 (6-7t holder grønt) (2026-06-06)
