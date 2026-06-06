@@ -23,7 +23,7 @@ Tjenester som kjører og er bekreftet fungerende (med dato for siste verifiserin
 | Styrkelogg (`/strength`) | 🟢 | 2026-06-06 | v3.1: Mayos EKTE øvelsesbibliotek (17 øvelser) + baselines + PPL×2 + **progresjonsmotor** (dobbel progresjon, justeringsregel, stagnasjonsflagg, «sist:»-tall, coaching-banner pr øvelse). Beholder v3-funksjoner. |
 | Regelbok-sjekk i app | 🟢 | 2026-06-06 | «Sjekk økt mot regelboka» på /strength I dag → /training?action=evaluate (ekte gating+fase). |
 | PT øktvalg-regelbok | 🟢 | 2026-06-06 | **v3.1 forenklet:** markløft fritt + **søvn-gating relaksert** (6-7t nedgraderer ikke grønn dag; <6t = eneste søvn-terskel, §4.1). `okt_logikk`+`gating`, **88 grønne**. Pull/Push/Bein/markløft svarer alle (gating-nivå). **Frekvens-vakt** <48t (markløft + push/bein-gruppe, fra styrkeloggen) → AVVIS. Live: `/training?action=evaluate`. |
-| PT LLM-lag (inc 4) | 🟢 | 2026-06-06 | Daglig motor-kort (PPL×2 + progresjon) + anonymisert LLM-kommentar live på `/strength` + `/training?action=daily`. Kjører på **gratis Gemini 2.5 Flash** (pt-daily) m/ fallback pt-weekly→claude-haiku→motor. **Telegram:** daglig (morgenrapport, Gemini, 08:00) + **ukentlig analyse** (søndag 20:00, pt-weekly/Claude, hopper over hvis 0 økter). |
+| PT LLM-lag (inc 4) | 🟢 | 2026-06-06 | Daglig motor-kort (PPL×2 + progresjon) + anonymisert LLM-kommentar live på `/strength` + `/training?action=daily`. Kjører på **gratis Gemini 2.5 Flash** (pt-daily) m/ fallback pt-weekly→claude-haiku→motor. **Telegram:** daglig (morgenrapport, Gemini, 08:00) + **ukentlig analyse** (søndag 20:00 Telegram + **i Stats-fanen** via /training?action=weekly, cachet, pt-weekly/Claude, hopper over hvis 0 økter). |
 | Public state-mirror | 🟢 | 2026-06-05 | `mayo-os-state` (public) · raw-URL 200 · planleggeren leser den |
 
 ## 🟡 Pågår / delvis
@@ -43,6 +43,7 @@ Kjente feil som blokkerer eller irriterer. Med dato oppdaget.
 Nyeste øverst. Format: `hash — beskrivelse (dato)`
 
 **Backend (`mayo-ai-os`):**
+- `e6e2d86` — /training?action=weekly (cachet ukesanalyse) (2026-06-06)
 - `1f57467` — ukentlig PT-analyse (søndag-cron, Claude) (2026-06-06)
 - `9a41691` — Push/Bein i regelboka + frekvens-vakt generalisert (2026-06-06)
 - `b228d9e` — morgenrapportens PT-blokk → v3.1 daglig-kort + Gemini (inc 4 cron) (2026-06-06)
@@ -60,6 +61,7 @@ Nyeste øverst. Format: `hash — beskrivelse (dato)`
 - `e991dec`/`e430b98` — OpenClaw read-only recon-rapport (2026-06-05)
 
 **Frontend (`mayo-os`):**
+- `fa943e8` — ukentlig PT-analyse i Stats-fanen (2026-06-06)
 - `34c0da2` — vis daglig motor-kort + LLM-kommentar i I dag (erstatter hip-thrust-wart) (2026-06-06)
 - `dcc6d74` — ekte dato i datostripe + PPL×2-ukeplan (ikke mock) (2026-06-06)
 - `cb36d32` — progresjonsmotor v3.1 (dobbel progresjon + sist-tall + stagnasjon) (2026-06-06)
