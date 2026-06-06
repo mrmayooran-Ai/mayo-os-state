@@ -22,7 +22,7 @@ Tjenester som kjører og er bekreftet fungerende (med dato for siste verifiserin
 | Google Calendar (skriv) | 🟢 | 2026-06-05 | OAuth re-auth: write-scope + `/calendar-auth`-callback (db-api) + ny refresh-token. PT→kalender aktiv. |
 | Styrkelogg (`/strength`) | 🟢 | 2026-06-06 | v3.1: Mayos EKTE øvelsesbibliotek (17 øvelser) + baselines + PPL×2 + **progresjonsmotor** (dobbel progresjon, justeringsregel, stagnasjonsflagg, «sist:»-tall, coaching-banner pr øvelse). Beholder v3-funksjoner. |
 | Regelbok-sjekk i app | 🟢 | 2026-06-06 | «Sjekk økt mot regelboka» på /strength I dag → /training?action=evaluate (ekte gating+fase). |
-| PT øktvalg-regelbok | 🟢 | 2026-06-06 | **v3.1 forenklet:** markløft fritt + **søvn-gating relaksert** (6-7t nedgraderer ikke grønn dag; <6t = eneste søvn-terskel, §4.1). `okt_logikk`+`gating`, 72 grønne. Live: `/training?action=evaluate`. |
+| PT øktvalg-regelbok | 🟢 | 2026-06-06 | **v3.1 forenklet:** markløft fritt + **søvn-gating relaksert** (6-7t nedgraderer ikke grønn dag; <6t = eneste søvn-terskel, §4.1). `okt_logikk`+`gating`, **76 grønne**. + **markløft frekvens-vakt** (<48t siden sist → AVVIS, kilde: styrkeloggen/Vei C). Live: `/training?action=evaluate`. |
 | Public state-mirror | 🟢 | 2026-06-05 | `mayo-os-state` (public) · raw-URL 200 · planleggeren leser den |
 
 ## 🟡 Pågår / delvis
@@ -42,6 +42,7 @@ Kjente feil som blokkerer eller irriterer. Med dato oppdaget.
 Nyeste øverst. Format: `hash — beskrivelse (dato)`
 
 **Backend (`mayo-ai-os`):**
+- `057c782` — markløft frekvens-vakt FØR gating (Vei C styrkelogg) (2026-06-06)
 - `bd3fc77` — relaks søvn-gating v3.1 §4.1 (6-7t holder grønt) (2026-06-06)
 - `25472a4` — PT regelbok v3.1: markløft fri (ingen Q4/langløp), 72 tester (2026-06-06)
 - `4134a9a` — PPL×2-seed med Mayos ekte øvelser (2026-06-06)
@@ -68,7 +69,7 @@ Nyeste øverst. Format: `hash — beskrivelse (dato)`
 Beskjeder fra Elmars til claude.ai som påvirker neste planlegging.
 
 - **Styrkelogg (PT v3.1):** øvelsesbibliotek + PPL×2 = Mayos faktiske senter. **Progresjonsmotor** live: når Mayo loggfører vekt·reps·RIR, anbefaler appen neste økt (dobbel progresjon, +2.5/+5kg, stagnasjon→deload) med «sist:»-tall pr øvelse. Recovery/uke = ekte (Whoop+Strava). Gjenstår: daglig Claude-lag (seksjon 6, inc 4) — **UTSATT av Mayo 06.06** («vent, test inc 1-3 først»). Berører gjentakende Telegram-send; Mayo deaktiverte gamle morgen-brief 04.06. Bygges ikke før Mayo velger leveringskanal.
-- **Regelboka (øktvalg) v3.1** — forenklet: ÉN kontinuerlig hypertrofi/styrke-fase, markløft progresjerer fritt (dobbel progresjon, ingen Q4-gate, ingen langløp-interferens). Testet (72 grønne) + live: `GET /training?action=evaluate&q=<forespørsel>`. GRØNN→full tung 4×6 · GUL→behold øvelse −volum/RIR · RØD→hvile.
+- **Regelboka (øktvalg) v3.1** — forenklet: ÉN kontinuerlig hypertrofi/styrke-fase, markløft progresjerer fritt (dobbel progresjon, ingen Q4-gate, ingen langløp-interferens). Testet (72 grønne) + live: `GET /training?action=evaluate&q=<forespørsel>`. GRØNN→full tung 4×6 · GUL→−volum/RIR · RØD→hvile. **Frekvens-vakt:** markløft <48t siden (fra styrkeloggen) → AVVIS uansett farge (erector ikke restituert). I dag: markløft trent 14t siden → AVVIST.
 - **⚠️ decide.py (morgen-anbefaling) bruker fortsatt GAMMEL ROTATION + utstyr** (f.eks. «hip thrust», «leg curl») som IKKE er i v3.1-biblioteket. Synlig i `/strength` «Anbefaling i dag» + Telegram-brief. Resten av appen (Program/logger/progresjon/regelbok) er v3.1-korrekt. Increment 4 bygger om decide.py → PPL×2 + Mayos bibliotek (UTSATT av Mayo 06.06).
 - **Gmail re-auth** venter på Mayos consent-klikk.
 - **Public state-mirror (`mayo-os-state`):** 🟢 live — les STATE.md på `raw.githubusercontent.com/mrmayooran-Ai/mayo-os-state/main/STATE.md`.
