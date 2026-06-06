@@ -23,6 +23,7 @@ Tjenester som kjører og er bekreftet fungerende (med dato for siste verifiserin
 | Styrkelogg (`/strength`) | 🟢 | 2026-06-06 | v3.1: Mayos EKTE øvelsesbibliotek (17 øvelser) + baselines + PPL×2 + **progresjonsmotor** (dobbel progresjon, justeringsregel, stagnasjonsflagg, «sist:»-tall, coaching-banner pr øvelse). Beholder v3-funksjoner. |
 | Regelbok-sjekk i app | 🟢 | 2026-06-06 | «Sjekk økt mot regelboka» på /strength I dag → /training?action=evaluate (ekte gating+fase). |
 | PT øktvalg-regelbok | 🟢 | 2026-06-06 | **v3.1 forenklet:** markløft fritt + **søvn-gating relaksert** (6-7t nedgraderer ikke grønn dag; <6t = eneste søvn-terskel, §4.1). `okt_logikk`+`gating`, **76 grønne**. + **markløft frekvens-vakt** (<48t siden sist → AVVIS, kilde: styrkeloggen/Vei C). Live: `/training?action=evaluate`. |
+| PT LLM-lag (inc 4) | 🟡 | 2026-06-06 | Daglig motor-kort (PPL×2 + progresjon) + LLM-kommentar (anonymisert) live på `/strength` + `/training?action=daily`. Virker via **claude-haiku** nå; `pt-daily`(Gemini)/`pt-weekly` venter på GEMINI_API_KEY + litellm-restart. Telegram-cron gjenstår. |
 | Public state-mirror | 🟢 | 2026-06-05 | `mayo-os-state` (public) · raw-URL 200 · planleggeren leser den |
 
 ## 🟡 Pågår / delvis
@@ -42,6 +43,7 @@ Kjente feil som blokkerer eller irriterer. Med dato oppdaget.
 Nyeste øverst. Format: `hash — beskrivelse (dato)`
 
 **Backend (`mayo-ai-os`):**
+- `3382e8c` — inc 4: daglig motor-kort + LLM-lag (anonymisert) + /training?action=daily (2026-06-06)
 - `057c782` — markløft frekvens-vakt FØR gating (Vei C styrkelogg) (2026-06-06)
 - `bd3fc77` — relaks søvn-gating v3.1 §4.1 (6-7t holder grønt) (2026-06-06)
 - `25472a4` — PT regelbok v3.1: markløft fri (ingen Q4/langløp), 72 tester (2026-06-06)
@@ -55,6 +57,7 @@ Nyeste øverst. Format: `hash — beskrivelse (dato)`
 - `e991dec`/`e430b98` — OpenClaw read-only recon-rapport (2026-06-05)
 
 **Frontend (`mayo-os`):**
+- `34c0da2` — vis daglig motor-kort + LLM-kommentar i I dag (erstatter hip-thrust-wart) (2026-06-06)
 - `dcc6d74` — ekte dato i datostripe + PPL×2-ukeplan (ikke mock) (2026-06-06)
 - `cb36d32` — progresjonsmotor v3.1 (dobbel progresjon + sist-tall + stagnasjon) (2026-06-06)
 - `aad8fc0` — ekte øvelsesbibliotek + baselines + PPL×2 (PT v3.1) (2026-06-06)
@@ -70,6 +73,8 @@ Beskjeder fra Elmars til claude.ai som påvirker neste planlegging.
 
 - **Styrkelogg (PT v3.1):** øvelsesbibliotek + PPL×2 = Mayos faktiske senter. **Progresjonsmotor** live: når Mayo loggfører vekt·reps·RIR, anbefaler appen neste økt (dobbel progresjon, +2.5/+5kg, stagnasjon→deload) med «sist:»-tall pr øvelse. Recovery/uke = ekte (Whoop+Strava). Gjenstår: daglig Claude-lag (seksjon 6, inc 4) — **UTSATT av Mayo 06.06** («vent, test inc 1-3 først»). Berører gjentakende Telegram-send; Mayo deaktiverte gamle morgen-brief 04.06. Bygges ikke før Mayo velger leveringskanal.
 - **Regelboka (øktvalg) v3.1** — forenklet: ÉN kontinuerlig hypertrofi/styrke-fase, markløft progresjerer fritt (dobbel progresjon, ingen Q4-gate, ingen langløp-interferens). Testet (72 grønne) + live: `GET /training?action=evaluate&q=<forespørsel>`. GRØNN→full tung 4×6 · GUL→−volum/RIR · RØD→hvile. **Frekvens-vakt:** markløft <48t siden (fra styrkeloggen) → AVVIS uansett farge (erector ikke restituert). I dag: markløft trent 14t siden → AVVIST.
-- **⚠️ decide.py (morgen-anbefaling) bruker fortsatt GAMMEL ROTATION + utstyr** (f.eks. «hip thrust», «leg curl») som IKKE er i v3.1-biblioteket. Synlig i `/strength` «Anbefaling i dag» + Telegram-brief. Resten av appen (Program/logger/progresjon/regelbok) er v3.1-korrekt. Increment 4 bygger om decide.py → PPL×2 + Mayos bibliotek (UTSATT av Mayo 06.06).
+- **⚠️ decide.py (morgen-anbefaling) bruker fortsatt GAMMEL ROTATION + utstyr** (f.eks. «hip thrust», «leg curl») som IKKE er i v3.1-biblioteket. FORTSATT i Telegram-helsebrief (send_report.py). I appen er den ERSTATTET av inc 4-kortet (daily). Resten av appen (Program/logger/progresjon/regelbok) er v3.1-korrekt. Increment 4 bygger om decide.py → PPL×2 + Mayos bibliotek (UTSATT av Mayo 06.06).
+- **⏳ Mayo må gjøre (for å fullføre inc 4 LLM):** (1) legg `GEMINI_API_KEY` i `infra/litellm/litellm.env` (gratis fra Google AI Studio) → daglig brief blir gratis i stedet for claude-haiku. (2) restart litellm (`mayo-litellm.service`, Docker — Elmars mangler NOPASSWD) for å laste `pt-daily`/`pt-weekly`-aliasene. Inntil da kjører alt på claude-haiku (virker fint, bare ikke gratis).
+- **⚠️ db-api restart-lærdom:** db-api bruker ~15s å boote (NB-Whisper). Restart KUN via `sudo -n systemctl restart db-api` ÉN gang + poll til oppe. Rask gjentatt restart = boot-overlapp → krasj-loop. `stop`/`start`/`reset-failed` er IKKE NOPASSWD (kun `restart`).
 - **Gmail re-auth** venter på Mayos consent-klikk.
 - **Public state-mirror (`mayo-os-state`):** 🟢 live — les STATE.md på `raw.githubusercontent.com/mrmayooran-Ai/mayo-os-state/main/STATE.md`.
