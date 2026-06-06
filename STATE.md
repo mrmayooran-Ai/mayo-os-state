@@ -20,12 +20,12 @@ Tjenester som kjører og er bekreftet fungerende (med dato for siste verifiserin
 | Telegram-bot | 🟢 | 2026-05-25 | Postgres chat_history |
 | LiteLLM-gateway (4000) | 🟢 | 2026-06-04 | |
 | Google Calendar (skriv) | 🟢 | 2026-06-05 | OAuth re-auth: write-scope + `/calendar-auth`-callback (db-api) + ny refresh-token. PT→kalender aktiv. |
-| Styrkelogg (`/strength`) | 🟢 | 2026-06-05 | v2: ekte recovery/anbefaling/uke + rediger/slett historikk + egne øvelser m/tag + reorder. |
+| Styrkelogg (`/strength`) | 🟢 | 2026-06-05 | v3: ekte data + rediger/slett + egne øvelser m/tag + reorder + Program full-redigering (DB) + Strava-tittel. |
 | PT øktvalg-regelbok | 🟢 | 2026-06-05 | `okt_logikk.evaluate_request` (Del D/E/F), 71 grønne tester. Live: `/training?action=evaluate`. |
 | Public state-mirror | 🟢 | 2026-06-05 | `mayo-os-state` (public) · raw-URL 200 · planleggeren leser den |
 
 ## 🟡 Pågår / delvis
-- **Program full-editering + Strava-tittel-skriving** — gjenstår (rutine-redigering + skrive Strava-tittel under Program). Trenger rutine-persistens (DB-tabell).
+- **Regelbok → /strength-anbefaling** — koble evaluate_request inn i anbefaling-kortet (Q4/RDL-nedgradering vist i appen).
 - **Regelbok → app-anbefaling** — anbefalingen i `/strength` viser nå PT-coach-tekst; regelbok-`evaluate_request` (Q4/RDL-nedgradering) er ikke koblet inn i kortet ennå.
 
 ## 🔴 Åpne problemer
@@ -44,6 +44,7 @@ Kjente feil som blokkerer eller irriterer. Med dato oppdaget.
 Nyeste øverst. Format: `hash — beskrivelse (dato)`
 
 **Backend (`mayo-ai-os`):**
+- `6852e7d` — strength_routine CRUD + seed + strava_title (2026-06-05)
 - `ee5e40f` — egne øvelser (strength_exercise) + PATCH /strength/sessions (2026-06-05)
 - `d4b41dd` — PT øktvalg-regelbok (Del D pull-skille + Del E fase-gate + Del F T1–T6, 71 tester) (2026-06-05)
 - `da325ef` — `strength_session` ekte logging (JSONB) (2026-06-05)
@@ -52,6 +53,7 @@ Nyeste øverst. Format: `hash — beskrivelse (dato)`
 - `e991dec`/`e430b98` — OpenClaw read-only recon-rapport (2026-06-05)
 
 **Frontend (`mayo-os`):**
+- `99d2870` — Program full-redigering + DB-persistens + Strava-tittel (2026-06-05)
 - `7404db6` — styrkelogg v2: ekte recovery/anbefaling/uke + editering + egne øvelser (2026-06-05)
 - `115cc7c` — styrkelogg ekte logging (DB) (2026-06-05)
 - `a43c08a` — Helse → Program-fane (ekte PT-coach) (2026-06-05)
