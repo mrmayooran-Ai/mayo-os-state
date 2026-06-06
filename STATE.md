@@ -4,7 +4,7 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via public speil `mayo-os-state`.
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-05 · **Av:** Elmars · **Versjon:** v0.5 Aurora
+**Sist oppdatert:** 2026-06-06 · **Av:** Elmars · **Versjon:** v0.5 Aurora
 
 ---
 
@@ -20,9 +20,9 @@ Tjenester som kjører og er bekreftet fungerende (med dato for siste verifiserin
 | Telegram-bot | 🟢 | 2026-05-25 | Postgres chat_history |
 | LiteLLM-gateway (4000) | 🟢 | 2026-06-04 | |
 | Google Calendar (skriv) | 🟢 | 2026-06-05 | OAuth re-auth: write-scope + `/calendar-auth`-callback (db-api) + ny refresh-token. PT→kalender aktiv. |
-| Styrkelogg (`/strength`) | 🟢 | 2026-06-05 | v3: ekte data + rediger/slett + egne øvelser m/tag + reorder + Program full-redigering (DB) + Strava-tittel. |
+| Styrkelogg (`/strength`) | 🟢 | 2026-06-06 | v3.1: Mayos EKTE øvelsesbibliotek (senter-utstyr, 17 øvelser) + baseline-vekter + PPL×2-rutiner. Beholder v3 (rediger/slett/egne øvelser/reorder/Program-redigering/Strava-tittel). |
 | Regelbok-sjekk i app | 🟢 | 2026-06-06 | «Sjekk økt mot regelboka» på /strength I dag → /training?action=evaluate (ekte gating+fase). |
-| PT øktvalg-regelbok | 🟢 | 2026-06-05 | `okt_logikk.evaluate_request` (Del D/E/F), 71 grønne tester. Live: `/training?action=evaluate`. |
+| PT øktvalg-regelbok | 🟢 | 2026-06-06 | **v3.1 forenklet:** markløft progresjerer fritt (ingen Q4-gate, ingen langløp-sperre). `okt_logikk.evaluate_request`, 72 grønne tester. Live: `/training?action=evaluate`. |
 | Public state-mirror | 🟢 | 2026-06-05 | `mayo-os-state` (public) · raw-URL 200 · planleggeren leser den |
 
 ## 🟡 Pågår / delvis
@@ -33,7 +33,6 @@ Kjente feil som blokkerer eller irriterer. Med dato oppdaget.
 - **E-post (gmail send/compose) nede** (2026-06-02) — OAuth-token døde; gjenopprettes med Mayos ENE consent-klikk (4-scope re-auth). Kalender funker uavhengig.
 
 ## 📋 Backlog (prioritert)
-- **#2:** ekte recovery/uke + regelbok-anbefaling inn i `/strength`
 - Enable Banking / finance-modul (6-fase plan klar)
 - Lokal modell-oppgradering 3b → 14b/32b
 - Obsidian-class markdown-editor i mayooran.com
@@ -43,6 +42,8 @@ Kjente feil som blokkerer eller irriterer. Med dato oppdaget.
 Nyeste øverst. Format: `hash — beskrivelse (dato)`
 
 **Backend (`mayo-ai-os`):**
+- `25472a4` — PT regelbok v3.1: markløft fri (ingen Q4/langløp), 72 tester (2026-06-06)
+- `4134a9a` — PPL×2-seed med Mayos ekte øvelser (2026-06-06)
 - `6852e7d` — strength_routine CRUD + seed + strava_title (2026-06-05)
 - `ee5e40f` — egne øvelser (strength_exercise) + PATCH /strength/sessions (2026-06-05)
 - `d4b41dd` — PT øktvalg-regelbok (Del D pull-skille + Del E fase-gate + Del F T1–T6, 71 tester) (2026-06-05)
@@ -52,6 +53,7 @@ Nyeste øverst. Format: `hash — beskrivelse (dato)`
 - `e991dec`/`e430b98` — OpenClaw read-only recon-rapport (2026-06-05)
 
 **Frontend (`mayo-os`):**
+- `aad8fc0` — ekte øvelsesbibliotek + baselines + PPL×2 (PT v3.1) (2026-06-06)
 - `2bc7067` — regelbok-sjekk i /strength I dag (Q4/RDL-verdikt synlig) (2026-06-06)
 - `99d2870` — Program full-redigering + DB-persistens + Strava-tittel (2026-06-05)
 - `7404db6` — styrkelogg v2: ekte recovery/anbefaling/uke + editering + egne øvelser (2026-06-05)
@@ -62,7 +64,7 @@ Nyeste øverst. Format: `hash — beskrivelse (dato)`
 ## 📝 Til planleggeren (claude.ai)
 Beskjeder fra Elmars til claude.ai som påvirker neste planlegging.
 
-- **Styrkelogg:** logging er EKTE (Postgres). Stats/PR/volum bygges på loggførte økter (tomt til Mayo logger). Recovery/uke/anbefaling i `/strength` er fortsatt MOCK (#2 gjenstår). Ekte recovery: `/health → Program`.
-- **Regelboka (øktvalg)** er implementert deterministisk + testet (71 grønne) + live: `GET /training?action=evaluate&q=<forespørsel>` bruker dagens ekte gating. Tung markløft nedgraderes til RDL 4×6 RIR3 utenfor Q4-peak-fasen.
+- **Styrkelogg:** logging EKTE (Postgres). Recovery/uke/anbefaling i `/strength` er nå EKTE (fra Whoop + loggførte økter). Øvelsesbibliotek + PPL×2-rutiner = Mayos faktiske senter (PT v3.1). Stats/PR/volum bygges på loggførte økter (tomt til Mayo logger).
+- **Regelboka (øktvalg) v3.1** — forenklet: ÉN kontinuerlig hypertrofi/styrke-fase, markløft progresjerer fritt (dobbel progresjon, ingen Q4-gate, ingen langløp-interferens). Testet (72 grønne) + live: `GET /training?action=evaluate&q=<forespørsel>`. GRØNN→full tung 4×6 · GUL→behold øvelse −volum/RIR · RØD→hvile. Gjenstår fra v3.1: progresjonsmotor (sist-tall) + daglig Claude-lag.
 - **Gmail re-auth** venter på Mayos consent-klikk.
 - **Public state-mirror (`mayo-os-state`):** 🟢 live — les STATE.md på `raw.githubusercontent.com/mrmayooran-Ai/mayo-os-state/main/STATE.md`.
