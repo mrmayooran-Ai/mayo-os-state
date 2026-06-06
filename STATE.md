@@ -16,12 +16,12 @@ Tjenester som kjører og er bekreftet fungerende (med dato for siste verifiserin
 | frontend (nginx 8086) | 🟢 | 2026-06-06 | mayooran.com · build 4e126df |
 | db-api (8001) | 🟢 | 2026-06-05 | |
 | Whoop-integrasjon | 🟢 | 2026-05-20 | direct-fetch, token `<SET>` |
-| Strava-integrasjon | 🟢 | 2026-05-20 | direct-fetch, token `<SET>` |
+| Strava-integrasjon | 🟢 | 2026-06-06 | direct-fetch, token `<SET>`. **Kalori-berikelse:** detalj-endpoint → Postgres-cache (`strava_activity_cache`) + hourly backfill-cron (rate-limited, 429-trygg). |
 | Telegram-bot | 🟢 | 2026-05-25 | Postgres chat_history |
 | LiteLLM-gateway (4000) | 🟢 | 2026-06-04 | |
 | Google Calendar (skriv) | 🟢 | 2026-06-05 | OAuth re-auth: write-scope + `/calendar-auth`-callback (db-api) + ny refresh-token. PT→kalender aktiv. |
 | Styrkelogg (`/strength`) | 🟢 | 2026-06-06 | v3.1: Mayos EKTE øvelsesbibliotek (17 øvelser) + baselines + PPL×2 + **progresjonsmotor** (dobbel progresjon, justeringsregel, stagnasjonsflagg, «sist:»-tall, coaching-banner pr øvelse). **I-dag UX-batch (06.06):** RecoveryCard redesignet (1-linje HRV ▲/▼ vs 30d-baseline, søvn-pil vs i går + måneds-snitt, dyp/REM i t:m fra /api/whoop); anbefaling klikkbar (plan+grunn) + **recency-fiks** (ben/RDL=ben, anbefaler mest uthvilte gruppe fra loggen — ikke Strava-tittel); «Valgfritt»-knapp m/ frekvens-fargede øvelser; klikkbare uke-økter → økt-stats. |
-| Health → Logg (`/health`) | 🟢 | 2026-06-06 | Periode-stats-flis 4→6 (Økter, Tid, Distanse, Kalorier, Snitt puls, Maks puls). **3mnd/YTD-databug fikset:** frontend hentet /strava uten `days` → backend 90d-default → YTD (~157d) undertalte; nå `?days=400`. Snitt puls kun over økter m/ pulsdata; kcal/puls «—» når data mangler. |
+| Health → Logg (`/health`) | 🟢 | 2026-06-06 | Periode-stats-flis 4→6 (Økter, Tid, Distanse, Kalorier, Snitt puls, Maks puls). **3mnd/YTD-databug fikset:** frontend hentet /strava uten `days` → backend 90d-default → YTD (~157d) undertalte; nå `?days=400`. Snitt puls kun over økter m/ pulsdata. **Kalorier nå ekte** (Strava detalj-endpoint → cache + backfill-cron); «—» kun til cachen er fylt. |
 | Regelbok-sjekk i app | 🟢 | 2026-06-06 | «Sjekk økt mot regelboka» på /strength I dag → /training?action=evaluate (ekte gating+fase). |
 | PT øktvalg-regelbok | 🟢 | 2026-06-06 | **v3.1 forenklet:** markløft fritt + **søvn-gating relaksert** (6-7t nedgraderer ikke grønn dag; <6t = eneste søvn-terskel, §4.1). `okt_logikk`+`gating`, **88 grønne**. Pull/Push/Bein/markløft svarer alle (gating-nivå). **Frekvens-vakt** <48t (markløft + push/bein-gruppe, fra styrkeloggen) → AVVIS. Live: `/training?action=evaluate`. |
 | PT LLM-lag (inc 4) | 🟢 | 2026-06-06 | Daglig motor-kort (PPL×2 + progresjon) + anonymisert LLM-kommentar live på `/strength` + `/training?action=daily`. Kjører på **gratis Gemini 2.5 Flash** (pt-daily) m/ fallback pt-weekly→claude-haiku→motor. **Telegram:** daglig (morgenrapport, Gemini, 08:00) + **ukentlig analyse** (søndag 20:00 Telegram + **i Stats-fanen** via /training?action=weekly, cachet, pt-weekly/Claude, hopper over hvis 0 økter). |
@@ -46,6 +46,7 @@ Kjente feil som blokkerer eller irriterer. Med dato oppdaget.
 Nyeste øverst. Format: `hash — beskrivelse (dato)`
 
 **Backend (`mayo-ai-os`):**
+- `1ab35c9` — Strava kalori-berikelse (detalj-endpoint → cache + rate-limited backfill-cron) (2026-06-06)
 - `f880657` — phases.py/decide.py → v3.1 single-phase (Q4/Race/1RM-test fjernet) (2026-06-06)
 - `e6e2d86` — /training?action=weekly (cachet ukesanalyse) (2026-06-06)
 - `1f57467` — ukentlig PT-analyse (søndag-cron, Claude) (2026-06-06)
@@ -95,5 +96,5 @@ Beskjeder fra Elmars til claude.ai som påvirker neste planlegging.
 - **⚠️ db-api restart-lærdom:** db-api bruker ~15s å boote (NB-Whisper). Restart KUN via `sudo -n systemctl restart db-api` ÉN gang + poll til oppe. Rask gjentatt restart = boot-overlapp → krasj-loop. `stop`/`start`/`reset-failed` er IKKE NOPASSWD (kun `restart`).
 - **Gmail re-auth** venter på Mayos consent-klikk.
 - **Public state-mirror (`mayo-os-state`):** 🟢 live — les STATE.md på `raw.githubusercontent.com/mrmayooran-Ai/mayo-os-state/main/STATE.md`.
-- **I-dag/Logg UX-batch ferdig (06.06):** RecoveryCard (HRV-trend/søvn-piler/dyp-REM), klikkbar anbefaling + **recency-fiks** (motor/LLM ser nå styrkeloggen, ikke Strava-tittelen — fikser «ben i dag når jeg trente ben i går»), «Valgfritt»-velger, klikkbare uke-økter, Logg periode-stats + **3mnd/YTD-databug fikset** (days=400). NB kcal: Strava-aktivitetslista har ikke alltid per-økt-kalorier → «—» når mangler (kan berikes fra detalj-endpoint/WHOOP hvis Mayo vil).
+- **I-dag/Logg UX-batch ferdig (06.06):** RecoveryCard (HRV-trend/søvn-piler/dyp-REM), klikkbar anbefaling + **recency-fiks** (motor/LLM ser nå styrkeloggen, ikke Strava-tittelen — fikser «ben i dag når jeg trente ben i går»), «Valgfritt»-velger, klikkbare uke-økter, Logg periode-stats + **3mnd/YTD-databug fikset** (days=400). kcal: **berikes nå** fra Strava detalj-endpoint → Postgres-cache + hourly backfill-cron (rate-limited, 429-trygg). 95/317 cachet umiddelbart (alle Mayos periode-vinduer dekket); resten fylles av cron. Verifisert 30d/90d/YTD = alle aktiviteter har kalorier.
 - **Assistent «Jarvis»-oppgradering:** design startet 06.06, avventer Mayos instruksjoner + suverenitets-valg (anonymiser→sky vs hard-lokal). Se backlog.
