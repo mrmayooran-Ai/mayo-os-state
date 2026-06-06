@@ -34,6 +34,7 @@ Kjente feil som blokkerer eller irriterer. Med dato oppdaget.
 - **E-post (gmail send/compose) nede** (2026-06-02) — OAuth-token døde; gjenopprettes med Mayos ENE consent-klikk (4-scope re-auth). Kalender funker uavhengig.
 
 ## 📋 Backlog (prioritert)
+- **Lokal 14b-oppgradering — IKKE trygt mulig nå** (recon 06.06): VPS 4.5Gi ledig (14b≈9GB), M1 sover uforutsigbart. Krever M1 always-on (launchd keep-alive) for 14b-default — Mayos avgjørelse. Dagens 3b-VPS + 14b-M1(privat, eksplisitt) + sky-fallback er hw-riktig.
 - Enable Banking / finance-modul (6-fase plan klar)
 - Lokal modell-oppgradering 3b → 14b/32b
 - Obsidian-class markdown-editor i mayooran.com
