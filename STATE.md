@@ -20,7 +20,7 @@ Tjenester som kjører og er bekreftet fungerende (med dato for siste verifiserin
 | Telegram-bot | 🟢 | 2026-05-25 | Postgres chat_history |
 | LiteLLM-gateway (4000) | 🟢 | 2026-06-04 | |
 | Google Calendar (skriv) | 🟢 | 2026-06-05 | OAuth re-auth: write-scope + `/calendar-auth`-callback (db-api) + ny refresh-token. PT→kalender aktiv. |
-| Styrkelogg (`/strength`) | 🟢 | 2026-06-06 | v3.1: Mayos EKTE øvelsesbibliotek (senter-utstyr, 17 øvelser) + baseline-vekter + PPL×2-rutiner. Beholder v3 (rediger/slett/egne øvelser/reorder/Program-redigering/Strava-tittel). |
+| Styrkelogg (`/strength`) | 🟢 | 2026-06-06 | v3.1: Mayos EKTE øvelsesbibliotek (17 øvelser) + baselines + PPL×2 + **progresjonsmotor** (dobbel progresjon, justeringsregel, stagnasjonsflagg, «sist:»-tall, coaching-banner pr øvelse). Beholder v3-funksjoner. |
 | Regelbok-sjekk i app | 🟢 | 2026-06-06 | «Sjekk økt mot regelboka» på /strength I dag → /training?action=evaluate (ekte gating+fase). |
 | PT øktvalg-regelbok | 🟢 | 2026-06-06 | **v3.1 forenklet:** markløft progresjerer fritt (ingen Q4-gate, ingen langløp-sperre). `okt_logikk.evaluate_request`, 72 grønne tester. Live: `/training?action=evaluate`. |
 | Public state-mirror | 🟢 | 2026-06-05 | `mayo-os-state` (public) · raw-URL 200 · planleggeren leser den |
@@ -53,6 +53,7 @@ Nyeste øverst. Format: `hash — beskrivelse (dato)`
 - `e991dec`/`e430b98` — OpenClaw read-only recon-rapport (2026-06-05)
 
 **Frontend (`mayo-os`):**
+- `cb36d32` — progresjonsmotor v3.1 (dobbel progresjon + sist-tall + stagnasjon) (2026-06-06)
 - `aad8fc0` — ekte øvelsesbibliotek + baselines + PPL×2 (PT v3.1) (2026-06-06)
 - `2bc7067` — regelbok-sjekk i /strength I dag (Q4/RDL-verdikt synlig) (2026-06-06)
 - `99d2870` — Program full-redigering + DB-persistens + Strava-tittel (2026-06-05)
@@ -64,7 +65,7 @@ Nyeste øverst. Format: `hash — beskrivelse (dato)`
 ## 📝 Til planleggeren (claude.ai)
 Beskjeder fra Elmars til claude.ai som påvirker neste planlegging.
 
-- **Styrkelogg:** logging EKTE (Postgres). Recovery/uke/anbefaling i `/strength` er nå EKTE (fra Whoop + loggførte økter). Øvelsesbibliotek + PPL×2-rutiner = Mayos faktiske senter (PT v3.1). Stats/PR/volum bygges på loggførte økter (tomt til Mayo logger).
-- **Regelboka (øktvalg) v3.1** — forenklet: ÉN kontinuerlig hypertrofi/styrke-fase, markløft progresjerer fritt (dobbel progresjon, ingen Q4-gate, ingen langløp-interferens). Testet (72 grønne) + live: `GET /training?action=evaluate&q=<forespørsel>`. GRØNN→full tung 4×6 · GUL→behold øvelse −volum/RIR · RØD→hvile. Gjenstår fra v3.1: progresjonsmotor (sist-tall) + daglig Claude-lag.
+- **Styrkelogg (PT v3.1):** øvelsesbibliotek + PPL×2 = Mayos faktiske senter. **Progresjonsmotor** live: når Mayo loggfører vekt·reps·RIR, anbefaler appen neste økt (dobbel progresjon, +2.5/+5kg, stagnasjon→deload) med «sist:»-tall pr øvelse. Recovery/uke = ekte (Whoop+Strava). Gjenstår: daglig Claude-lag (seksjon 6) — cron→payload→API→Telegram (ENDRER daglig brief, avventer Mayos OK).
+- **Regelboka (øktvalg) v3.1** — forenklet: ÉN kontinuerlig hypertrofi/styrke-fase, markløft progresjerer fritt (dobbel progresjon, ingen Q4-gate, ingen langløp-interferens). Testet (72 grønne) + live: `GET /training?action=evaluate&q=<forespørsel>`. GRØNN→full tung 4×6 · GUL→behold øvelse −volum/RIR · RØD→hvile.
 - **Gmail re-auth** venter på Mayos consent-klikk.
 - **Public state-mirror (`mayo-os-state`):** 🟢 live — les STATE.md på `raw.githubusercontent.com/mrmayooran-Ai/mayo-os-state/main/STATE.md`.
