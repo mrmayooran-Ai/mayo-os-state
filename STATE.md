@@ -61,6 +61,7 @@ Nyeste øverst. Format: `hash — beskrivelse (dato)`
 - `e991dec`/`e430b98` — OpenClaw read-only recon-rapport (2026-06-05)
 
 **Frontend (`mayo-os`):**
+- `7c23246` — reelle beste tall i stats (dropp est. 1RM/Epley) (2026-06-06)
 - `fa943e8` — ukentlig PT-analyse i Stats-fanen (2026-06-06)
 - `34c0da2` — vis daglig motor-kort + LLM-kommentar i I dag (erstatter hip-thrust-wart) (2026-06-06)
 - `dcc6d74` — ekte dato i datostripe + PPL×2-ukeplan (ikke mock) (2026-06-06)
