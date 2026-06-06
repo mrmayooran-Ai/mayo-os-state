@@ -22,8 +22,8 @@ Tjenester som kjører og er bekreftet fungerende (med dato for siste verifiserin
 | Google Calendar (skriv) | 🟢 | 2026-06-05 | OAuth re-auth: write-scope + `/calendar-auth`-callback (db-api) + ny refresh-token. PT→kalender aktiv. |
 | Styrkelogg (`/strength`) | 🟢 | 2026-06-06 | v3.1: Mayos EKTE øvelsesbibliotek (17 øvelser) + baselines + PPL×2 + **progresjonsmotor** (dobbel progresjon, justeringsregel, stagnasjonsflagg, «sist:»-tall, coaching-banner pr øvelse). Beholder v3-funksjoner. |
 | Regelbok-sjekk i app | 🟢 | 2026-06-06 | «Sjekk økt mot regelboka» på /strength I dag → /training?action=evaluate (ekte gating+fase). |
-| PT øktvalg-regelbok | 🟢 | 2026-06-06 | **v3.1 forenklet:** markløft fritt + **søvn-gating relaksert** (6-7t nedgraderer ikke grønn dag; <6t = eneste søvn-terskel, §4.1). `okt_logikk`+`gating`, **76 grønne**. + **markløft frekvens-vakt** (<48t siden sist → AVVIS, kilde: styrkeloggen/Vei C). Live: `/training?action=evaluate`. |
-| PT LLM-lag (inc 4) | 🟢 | 2026-06-06 | Daglig motor-kort (PPL×2 + progresjon) + anonymisert LLM-kommentar live på `/strength` + `/training?action=daily`. Kjører på **gratis Gemini 2.5 Flash** (pt-daily) m/ fallback pt-weekly→claude-haiku→motor. **Telegram:** morgenrapportens PT-blokk (send_report) bruker nå v3.1-kortet + Gemini (guardet fallback), live daglig 08:00. |
+| PT øktvalg-regelbok | 🟢 | 2026-06-06 | **v3.1 forenklet:** markløft fritt + **søvn-gating relaksert** (6-7t nedgraderer ikke grønn dag; <6t = eneste søvn-terskel, §4.1). `okt_logikk`+`gating`, **88 grønne**. Pull/Push/Bein/markløft svarer alle (gating-nivå). **Frekvens-vakt** <48t (markløft + push/bein-gruppe, fra styrkeloggen) → AVVIS. Live: `/training?action=evaluate`. |
+| PT LLM-lag (inc 4) | 🟢 | 2026-06-06 | Daglig motor-kort (PPL×2 + progresjon) + anonymisert LLM-kommentar live på `/strength` + `/training?action=daily`. Kjører på **gratis Gemini 2.5 Flash** (pt-daily) m/ fallback pt-weekly→claude-haiku→motor. **Telegram:** daglig (morgenrapport, Gemini, 08:00) + **ukentlig analyse** (søndag 20:00, pt-weekly/Claude, hopper over hvis 0 økter). |
 | Public state-mirror | 🟢 | 2026-06-05 | `mayo-os-state` (public) · raw-URL 200 · planleggeren leser den |
 
 ## 🟡 Pågår / delvis
@@ -43,6 +43,8 @@ Kjente feil som blokkerer eller irriterer. Med dato oppdaget.
 Nyeste øverst. Format: `hash — beskrivelse (dato)`
 
 **Backend (`mayo-ai-os`):**
+- `1f57467` — ukentlig PT-analyse (søndag-cron, Claude) (2026-06-06)
+- `9a41691` — Push/Bein i regelboka + frekvens-vakt generalisert (2026-06-06)
 - `b228d9e` — morgenrapportens PT-blokk → v3.1 daglig-kort + Gemini (inc 4 cron) (2026-06-06)
 - `3382e8c` — inc 4: daglig motor-kort + LLM-lag (anonymisert) + /training?action=daily (2026-06-06)
 - `057c782` — markløft frekvens-vakt FØR gating (Vei C styrkelogg) (2026-06-06)
@@ -74,7 +76,7 @@ Beskjeder fra Elmars til claude.ai som påvirker neste planlegging.
 
 - **Styrkelogg (PT v3.1):** øvelsesbibliotek + PPL×2 = Mayos faktiske senter. **Progresjonsmotor** live: når Mayo loggfører vekt·reps·RIR, anbefaler appen neste økt (dobbel progresjon, +2.5/+5kg, stagnasjon→deload) med «sist:»-tall pr øvelse. Recovery/uke = ekte (Whoop+Strava). Gjenstår: daglig Claude-lag (seksjon 6, inc 4) — **UTSATT av Mayo 06.06** («vent, test inc 1-3 først»). Berører gjentakende Telegram-send; Mayo deaktiverte gamle morgen-brief 04.06. Bygges ikke før Mayo velger leveringskanal.
 - **Regelboka (øktvalg) v3.1** — forenklet: ÉN kontinuerlig hypertrofi/styrke-fase, markløft progresjerer fritt (dobbel progresjon, ingen Q4-gate, ingen langløp-interferens). Testet (72 grønne) + live: `GET /training?action=evaluate&q=<forespørsel>`. GRØNN→full tung 4×6 · GUL→−volum/RIR · RØD→hvile. **Frekvens-vakt:** markløft <48t siden (fra styrkeloggen) → AVVIS uansett farge (erector ikke restituert). I dag: markløft trent 14t siden → AVVIST.
-- **⚠️ decide.py (morgen-anbefaling) bruker fortsatt GAMMEL ROTATION + utstyr** (f.eks. «hip thrust», «leg curl») som IKKE er i v3.1-biblioteket. FORTSATT i Telegram-helsebrief (send_report.py). I appen er den ERSTATTET av inc 4-kortet (daily). Resten av appen (Program/logger/progresjon/regelbok) er v3.1-korrekt. Increment 4 bygger om decide.py → PPL×2 + Mayos bibliotek (UTSATT av Mayo 06.06).
+- **decide.py (gammel ROTATION/utstyr) er nå DORMANT** — erstattet av v3.1 daglig-kort både i app (`/strength`) og Telegram (send_report). Kjører fortsatt for gating-nivået + skriver pt_logg-narrativ (ikke brukervendt). Opprinnelig: (f.eks. «hip thrust», «leg curl») som IKKE er i v3.1-biblioteket. FORTSATT i Telegram-helsebrief (send_report.py). I appen er den ERSTATTET av inc 4-kortet (daily). Resten av appen (Program/logger/progresjon/regelbok) er v3.1-korrekt. Increment 4 bygger om decide.py → PPL×2 + Mayos bibliotek (UTSATT av Mayo 06.06).
 - **⏳ Mayo må gjøre (for å fullføre inc 4 LLM):** (1) legg `GEMINI_API_KEY` i `infra/litellm/litellm.env` (gratis fra Google AI Studio) → daglig brief blir gratis i stedet for claude-haiku. (2) restart litellm (`mayo-litellm.service`, Docker — Elmars mangler NOPASSWD) for å laste `pt-daily`/`pt-weekly`-aliasene. Inntil da kjører alt på claude-haiku (virker fint, bare ikke gratis).
 - **⚠️ db-api restart-lærdom:** db-api bruker ~15s å boote (NB-Whisper). Restart KUN via `sudo -n systemctl restart db-api` ÉN gang + poll til oppe. Rask gjentatt restart = boot-overlapp → krasj-loop. `stop`/`start`/`reset-failed` er IKKE NOPASSWD (kun `restart`).
 - **Gmail re-auth** venter på Mayos consent-klikk.
