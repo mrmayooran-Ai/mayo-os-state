@@ -63,6 +63,7 @@ Nyeste øverst. Format: `hash — beskrivelse (dato)`
 - `e991dec`/`e430b98` — OpenClaw read-only recon-rapport (2026-06-05)
 
 **Frontend (`mayo-os`):**
+- `83b65fa` — gull-MM-logo + app-ikoner (login-orb + header + favicon) (2026-06-06)
 - `79e48ac` — markdown-editor: live preview + wikilinks (punkt 2) (2026-06-06)
 - `7c23246` — reelle beste tall i stats (dropp est. 1RM/Epley) (2026-06-06)
 - `fa943e8` — ukentlig PT-analyse i Stats-fanen (2026-06-06)
