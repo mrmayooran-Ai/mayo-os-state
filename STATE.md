@@ -65,7 +65,7 @@ Nyeste øverst. Format: `hash — beskrivelse (dato)`
 ## 📝 Til planleggeren (claude.ai)
 Beskjeder fra Elmars til claude.ai som påvirker neste planlegging.
 
-- **Styrkelogg (PT v3.1):** øvelsesbibliotek + PPL×2 = Mayos faktiske senter. **Progresjonsmotor** live: når Mayo loggfører vekt·reps·RIR, anbefaler appen neste økt (dobbel progresjon, +2.5/+5kg, stagnasjon→deload) med «sist:»-tall pr øvelse. Recovery/uke = ekte (Whoop+Strava). Gjenstår: daglig Claude-lag (seksjon 6) — cron→payload→API→Telegram (ENDRER daglig brief, avventer Mayos OK).
+- **Styrkelogg (PT v3.1):** øvelsesbibliotek + PPL×2 = Mayos faktiske senter. **Progresjonsmotor** live: når Mayo loggfører vekt·reps·RIR, anbefaler appen neste økt (dobbel progresjon, +2.5/+5kg, stagnasjon→deload) med «sist:»-tall pr øvelse. Recovery/uke = ekte (Whoop+Strava). Gjenstår: daglig Claude-lag (seksjon 6, inc 4) — **UTSATT av Mayo 06.06** («vent, test inc 1-3 først»). Berører gjentakende Telegram-send; Mayo deaktiverte gamle morgen-brief 04.06. Bygges ikke før Mayo velger leveringskanal.
 - **Regelboka (øktvalg) v3.1** — forenklet: ÉN kontinuerlig hypertrofi/styrke-fase, markløft progresjerer fritt (dobbel progresjon, ingen Q4-gate, ingen langløp-interferens). Testet (72 grønne) + live: `GET /training?action=evaluate&q=<forespørsel>`. GRØNN→full tung 4×6 · GUL→behold øvelse −volum/RIR · RØD→hvile.
 - **Gmail re-auth** venter på Mayos consent-klikk.
 - **Public state-mirror (`mayo-os-state`):** 🟢 live — les STATE.md på `raw.githubusercontent.com/mrmayooran-Ai/mayo-os-state/main/STATE.md`.
