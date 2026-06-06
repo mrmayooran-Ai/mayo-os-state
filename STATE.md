@@ -21,12 +21,11 @@ Tjenester som kjører og er bekreftet fungerende (med dato for siste verifiserin
 | LiteLLM-gateway (4000) | 🟢 | 2026-06-04 | |
 | Google Calendar (skriv) | 🟢 | 2026-06-05 | OAuth re-auth: write-scope + `/calendar-auth`-callback (db-api) + ny refresh-token. PT→kalender aktiv. |
 | Styrkelogg (`/strength`) | 🟢 | 2026-06-05 | v3: ekte data + rediger/slett + egne øvelser m/tag + reorder + Program full-redigering (DB) + Strava-tittel. |
+| Regelbok-sjekk i app | 🟢 | 2026-06-06 | «Sjekk økt mot regelboka» på /strength I dag → /training?action=evaluate (ekte gating+fase). |
 | PT øktvalg-regelbok | 🟢 | 2026-06-05 | `okt_logikk.evaluate_request` (Del D/E/F), 71 grønne tester. Live: `/training?action=evaluate`. |
 | Public state-mirror | 🟢 | 2026-06-05 | `mayo-os-state` (public) · raw-URL 200 · planleggeren leser den |
 
 ## 🟡 Pågår / delvis
-- **Regelbok → /strength-anbefaling** — koble evaluate_request inn i anbefaling-kortet (Q4/RDL-nedgradering vist i appen).
-- **Regelbok → app-anbefaling** — anbefalingen i `/strength` viser nå PT-coach-tekst; regelbok-`evaluate_request` (Q4/RDL-nedgradering) er ikke koblet inn i kortet ennå.
 
 ## 🔴 Åpne problemer
 Kjente feil som blokkerer eller irriterer. Med dato oppdaget.
@@ -53,6 +52,7 @@ Nyeste øverst. Format: `hash — beskrivelse (dato)`
 - `e991dec`/`e430b98` — OpenClaw read-only recon-rapport (2026-06-05)
 
 **Frontend (`mayo-os`):**
+- `2bc7067` — regelbok-sjekk i /strength I dag (Q4/RDL-verdikt synlig) (2026-06-06)
 - `99d2870` — Program full-redigering + DB-persistens + Strava-tittel (2026-06-05)
 - `7404db6` — styrkelogg v2: ekte recovery/anbefaling/uke + editering + egne øvelser (2026-06-05)
 - `115cc7c` — styrkelogg ekte logging (DB) (2026-06-05)
