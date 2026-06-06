@@ -22,6 +22,7 @@ Tjenester som kjører og er bekreftet fungerende (med dato for siste verifiserin
 | Google Calendar (skriv) | 🟢 | 2026-06-05 | OAuth re-auth: write-scope + `/calendar-auth`-callback (db-api) + ny refresh-token. PT→kalender aktiv. |
 | Styrkelogg (`/strength`) | 🟢 | 2026-06-06 | v3.1: Mayos EKTE øvelsesbibliotek (17 øvelser) + baselines + PPL×2 + **progresjonsmotor** (dobbel progresjon, justeringsregel, stagnasjonsflagg, «sist:»-tall, coaching-banner pr øvelse). **I-dag UX-batch (06.06):** RecoveryCard redesignet (1-linje HRV ▲/▼ vs 30d-baseline, søvn-pil vs i går + måneds-snitt, dyp/REM i t:m fra /api/whoop); anbefaling klikkbar (plan+grunn) + **recency-fiks** (ben/RDL=ben, anbefaler mest uthvilte gruppe fra loggen — ikke Strava-tittel); «Valgfritt»-knapp m/ frekvens-fargede øvelser; klikkbare uke-økter → økt-stats. |
 | Health → Logg (`/health`) | 🟢 | 2026-06-06 | Periode-stats-flis 4→6 (Økter, Tid, Distanse, Kalorier, Snitt puls, Maks puls). **3mnd/YTD-databug fikset:** frontend hentet /strava uten `days` → backend 90d-default → YTD (~157d) undertalte; nå `?days=400`. Snitt puls kun over økter m/ pulsdata. **Kalorier nå ekte** (Strava detalj-endpoint → cache + backfill-cron); «—» kun til cachen er fylt. |
+| Assistent (Jarvis) (`/assistent`) | 🟢 | 2026-06-06 | **JARVIS-skin** (reaktor-orb + holo-HUD). **Agentisk persona** (proaktiv multi-ekspert: coach/formue/IVF/helse/psykolog/tech) som HANDLER via verktøy, ikke bare råder. **30 verktøy** inkl. web_search (DuckDuckGo, nøkkelfri) + get_stock_price/get_stock_history (Yahoo, inline cyan-graf) + get_daily_workout/check_training_rule (PT-motor) + kalender/oppgaver-skriv. **Anti-fabrikasjon-guardrail.** Kjører Claude (Gemini/Lokal-velger = inc 2). |
 | Regelbok-sjekk i app | 🟢 | 2026-06-06 | «Sjekk økt mot regelboka» på /strength I dag → /training?action=evaluate (ekte gating+fase). |
 | PT øktvalg-regelbok | 🟢 | 2026-06-06 | **v3.1 forenklet:** markløft fritt + **søvn-gating relaksert** (6-7t nedgraderer ikke grønn dag; <6t = eneste søvn-terskel, §4.1). `okt_logikk`+`gating`, **88 grønne**. Pull/Push/Bein/markløft svarer alle (gating-nivå). **Frekvens-vakt** <48t (markløft + push/bein-gruppe, fra styrkeloggen) → AVVIS. Live: `/training?action=evaluate`. |
 | PT LLM-lag (inc 4) | 🟢 | 2026-06-06 | Daglig motor-kort (PPL×2 + progresjon) + anonymisert LLM-kommentar live på `/strength` + `/training?action=daily`. Kjører på **gratis Gemini 2.5 Flash** (pt-daily) m/ fallback pt-weekly→claude-haiku→motor. **Telegram:** daglig (morgenrapport, Gemini, 08:00) + **ukentlig analyse** (søndag 20:00 Telegram + **i Stats-fanen** via /training?action=weekly, cachet, pt-weekly/Claude, hopper over hvis 0 økter). |
@@ -40,12 +41,16 @@ Kjente feil som blokkerer eller irriterer. Med dato oppdaget.
 - Lokal modell-oppgradering 3b → 14b/32b
 - Obsidian-class markdown-editor i mayooran.com
 - Auto-enrichment pipeline (silent tagging, psykolog-refleksjon)
-- **Assistent «Jarvis»-oppgradering** (design pågår 06.06 — avventer Mayos instruksjoner): Jarvis-tone + IVF-rolle, modell-velger (Gemini/Claude), anonymiser-før-sky round-trip, persistent minne (profil-MD + DB-historikk + RAG). ~70% infra finnes (system_prompt = 5 roller, LiteLLM-aliaser, anonymize i PT, rag-modul). Crux: suverenitet (helse/økonomi/journal→privat M1) vs sky — Mayo velger A (anonymiser→sky) / B (hard-lokal) / C (per-samtale).
+- **Jarvis-bygg (pågår):** ✅ inc 0 JARVIS-skin + agentisk multi-ekspert-persona + 30 verktøy (web/aksje/graf/PT-motor/kalender-handlinger) + anti-fabrikasjon-guardrail er **live**. Gjenstår (spec `handoff/JARVIS_v1_DESIGN.md`, plan `docs/superpowers/plans/2026-06-06-jarvis-v1.md`): **inc 1** minne (profil-MD + DB-historikk = «aldri glemme»), **inc 2** Gemini/Claude/Lokal-velger + C-knapp + llm_router-omskriving (🔴→lokal-VPS), **inc 3** anonymiser-round-trip, **inc 4** auto-rutede skills, **inc 5** RAG. Suverenitet bestemt: A default (anonymiser→sky) + C-knapp; M1 kun Obs BYGG. Neste: minne (inc 1) + log_workout-verktøy.
 
 ## 🕐 Siste commits
 Nyeste øverst. Format: `hash — beskrivelse (dato)`
 
 **Backend (`mayo-ai-os`):**
+- `a815111` — agentisk Jarvis-persona + PT-motor-verktøy (get_daily_workout/check_training_rule), 30 verktøy (2026-06-06)
+- `852c835` — get_stock_history + chart-event i strøm-loop (graf-plotting) (2026-06-06)
+- `debabee` — nøkkelfri web_search (DuckDuckGo) + get_stock_price (Yahoo) (2026-06-06)
+- `dded011` — web_search (Tavily) + anti-fabrikasjon-guardrail (2026-06-06)
 - `1ab35c9` — Strava kalori-berikelse (detalj-endpoint → cache + rate-limited backfill-cron) (2026-06-06)
 - `f880657` — phases.py/decide.py → v3.1 single-phase (Q4/Race/1RM-test fjernet) (2026-06-06)
 - `e6e2d86` — /training?action=weekly (cachet ukesanalyse) (2026-06-06)
@@ -66,6 +71,9 @@ Nyeste øverst. Format: `hash — beskrivelse (dato)`
 - `e991dec`/`e430b98` — OpenClaw read-only recon-rapport (2026-06-05)
 
 **Frontend (`mayo-os`):**
+- `9cb0eaf` — inline JARVIS-graf (chart-SSE-event → cyan linje-graf) (2026-06-06)
+- `f4a2066` — fiks dobbel «analyserer»-indikator (2026-06-06)
+- `09e5813` — JARVIS-skin: reaktor-orb + holo-HUD (Jarvis inc 0) (2026-06-06)
 - `4fdc640` — Health/Logg periode-stats (kcal+maks puls) + fiks 3mnd/YTD-data (E) (2026-06-06)
 - `c6b370d` — RecoveryCard redesign: HRV-trend + søvn-piler + dyp/REM (A) (2026-06-06)
 - `5c3e43c` — klikkbare uke-økter → stats (D) (2026-06-06)
@@ -97,4 +105,4 @@ Beskjeder fra Elmars til claude.ai som påvirker neste planlegging.
 - **Gmail re-auth** venter på Mayos consent-klikk.
 - **Public state-mirror (`mayo-os-state`):** 🟢 live — les STATE.md på `raw.githubusercontent.com/mrmayooran-Ai/mayo-os-state/main/STATE.md`.
 - **I-dag/Logg UX-batch ferdig (06.06):** RecoveryCard (HRV-trend/søvn-piler/dyp-REM), klikkbar anbefaling + **recency-fiks** (motor/LLM ser nå styrkeloggen, ikke Strava-tittelen — fikser «ben i dag når jeg trente ben i går»), «Valgfritt»-velger, klikkbare uke-økter, Logg periode-stats + **3mnd/YTD-databug fikset** (days=400). kcal: **berikes nå** fra Strava detalj-endpoint → Postgres-cache + hourly backfill-cron (rate-limited, 429-trygg). 95/317 cachet umiddelbart (alle Mayos periode-vinduer dekket); resten fylles av cron. Verifisert 30d/90d/YTD = alle aktiviteter har kalorier.
-- **Assistent «Jarvis»-oppgradering:** design startet 06.06, avventer Mayos instruksjoner + suverenitets-valg (anonymiser→sky vs hard-lokal). Se backlog.
+- **Jarvis-bygg (natt 06.06):** assistenten er nå **agentisk** — JARVIS-skin + multi-ekspert-persona som HANDLER (kalender/oppgaver/trening) + analyserer på tvers; **30 verktøy** inkl. nøkkelfri web_search (DuckDuckGo) + aksjekurs/-graf (Yahoo, inline cyan-graf) + PT-motor (dagens økt + regelbok) + anti-fabrikasjon-guardrail. Mayo godkjente JARVIS-vibben + ba om «smartere + gjør ting i mayooran.com» → levert. Gjenstår inc 1–5 (minne «aldri glemme» / Gemini-velger+ruting / anonymisering / skills / RAG) — se backlog + plan. Kjører Claude (din Gemini-nøkkel brukes til PT-daglig-kort).
