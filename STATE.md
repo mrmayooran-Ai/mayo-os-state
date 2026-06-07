@@ -41,12 +41,13 @@ Kjente feil som blokkerer eller irriterer. Med dato oppdaget.
 - Lokal modell-oppgradering 3b → 14b/32b
 - Obsidian-class markdown-editor i mayooran.com
 - Auto-enrichment pipeline (silent tagging, psykolog-refleksjon)
-- **Jarvis-bygg (pågår):** ✅ inc 0 JARVIS-skin + agentisk multi-ekspert-persona + 30 verktøy (web/aksje/graf/PT-motor/kalender-handlinger) + anti-fabrikasjon-guardrail er **live**. Gjenstår (spec `handoff/JARVIS_v1_DESIGN.md`, plan `docs/superpowers/plans/2026-06-06-jarvis-v1.md`): **inc 1** minne (profil-MD + DB-historikk = «aldri glemme»), **inc 2** Gemini/Claude/Lokal-velger + C-knapp + llm_router-omskriving (🔴→lokal-VPS), **inc 3** anonymiser-round-trip, **inc 4** auto-rutede skills, **inc 5** RAG. Suverenitet bestemt: A default (anonymiser→sky) + C-knapp; M1 kun Obs BYGG. Neste: minne (inc 1) + log_workout-verktøy.
+- **Jarvis-bygg (pågår):** ✅ inc 0 JARVIS-skin + agentisk multi-ekspert-persona + **31 verktøy** + anti-fabrikasjon-guardrail + ✅ **inc 1 minne-kjerne** (varig faktaminne `jarvis_memory.py` → `data/jarvis/*.md` gitignored; `remember`-verktøy; injiseres i persona hver samtale = «aldri glemme om Mayo»; seedet) er **live**. Gjenstår (spec `handoff/JARVIS_v1_DESIGN.md`, plan `docs/superpowers/plans/2026-06-06-jarvis-v1.md`): inc 1-rest **chat-historikk på tvers av enheter (DB)**, **inc 2** Gemini/Claude/Lokal-velger + C-knapp + llm_router-omskriving (🔴→lokal-VPS), **inc 3** anonymiser-round-trip, **inc 4** auto-rutede skills, **inc 5** RAG. Suverenitet bestemt: A default (anonymiser→sky) + C-knapp; M1 kun Obs BYGG.
 
 ## 🕐 Siste commits
 Nyeste øverst. Format: `hash — beskrivelse (dato)`
 
 **Backend (`mayo-ai-os`):**
+- `71b0f01` — inc 1 minne: varig faktaminne (jarvis_memory) + remember-verktøy, injiseres i persona (2026-06-06)
 - `a815111` — agentisk Jarvis-persona + PT-motor-verktøy (get_daily_workout/check_training_rule), 30 verktøy (2026-06-06)
 - `852c835` — get_stock_history + chart-event i strøm-loop (graf-plotting) (2026-06-06)
 - `debabee` — nøkkelfri web_search (DuckDuckGo) + get_stock_price (Yahoo) (2026-06-06)
