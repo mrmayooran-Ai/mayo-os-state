@@ -24,18 +24,19 @@ Disse låser opp ferdigbygde features — alt annet kjører.
 
 | Komponent | Status | Sist verifisert | Notat |
 |---|---|---|---|
-| frontend (nginx 8086) | 🟢 | 2026-06-08 | mayooran.com · build 08fd963 |
+| frontend (nginx 8086) | 🟢 | 2026-06-08 | mayooran.com · build a202ac2 |
 | db-api (8001) | 🟢 | 2026-06-08 | **Whisper pre-warm-timeout lagt til** (henger ikke lenger på oppstart) |
 | Whoop / Strava / Telegram / LiteLLM (4000) / Google Calendar | 🟢 | 2026-06-08 | uendret, fungerer |
 | **Gmail (lese + skrive)** | 🟢 | 2026-06-08 | re-auth gjort (gmail.readonly). Jarvis kan nå LESE/søke innboks (`search_emails`/`read_email`) + lage/sende utkast. E-post anonymiseres før sky. |
 | **Jarvis Inc 1 — minne** | 🟢 | 2026-06-08 | chat-historikk i Postgres (overlever enheter); profil-MD `jarvis_memory` (wiret inn). |
 | **Jarvis Inc 2 — ruting + C-knapp** | 🟢 | 2026-06-08 | rute-matrise: 🔴 ivf/økonomi → lokal Gemma 3 4B (aldri sky), resten → Claude. Pill-velger Auto/Claude/Gemini/Lokal + 🔒/☁-indikator. Gemini = gemini-2.5-flash. |
 | **Jarvis Inc 3 — anonymizer** | 🟢 | 2026-06-08 | norsk NER (spaCy) + regex scrubber ALL sky-trafikk (inkl. tool-resultater i Claude-loopen). Bevist 0 rå PII ut. `entities.txt` always-scrub. |
-| **iOS Web Push (VAPID)** | 🟢 (backend/frontend) | 2026-06-08 | self-hosted, kryptert, ingen tredjepart. `/sw.js` servert. Mangler kun Mayos abonnement (se TODO #1). |
+| **iOS Web Push (VAPID)** | 🟢 (backend/frontend) | 2026-06-08 | self-hosted, kryptert, ingen tredjepart. `/sw.js` servert. **Stille-timer 23–07** (vekker ikke). Mangler kun Mayos abonnement (se TODO #1). |
 | **Voice-router `/voice/jarvis`** | 🟢 | 2026-06-08 | tale → Whisper → Jarvis (ruting+anonymizer+34 verktøy) → ett kort svar. Jarvis avgjør reminder/kalender/mail/økonomi/trening selv. Testet (kalender-kommando). Mangler Shortcut (TODO #2). |
 | **Proaktiv dagbok-vokter** | 🟢 | 2026-06-08 | cron 30 min: nye dagbok-entries → lokal Gemma henter action items → de-dup → crm_task + Telegram/push. 🔴-trygt (lokal). Verifisert: 5 reelle oppgaver. |
 | **Trend-vakt (helse)** | 🟢 | 2026-06-08 | cron 07:30 UTC: Whoop recovery/HRV/RHR vs 7d-baseline → Telegram/push ved overtrening/sykdom-signal. |
-| **Morgenbrief-motor** | 🟢 | 2026-06-08 | 08:00-helserapporten samler nå recovery→økt + kalender (m/ konflikt) + topp-3 tasks + vær. |
+| **Morgenbrief-motor** | 🟢 | 2026-06-08 | 08:00-helserapporten samler nå recovery→økt + kalender (m/ konflikt) + topp-3 tasks + **innboks (uleste 24t)** + vær — og sender også **iOS-push**. Schedulert (cron 06,07 UTC). |
+| **In-app «I dag»-brief** | 🟢 | 2026-06-08 | kollapsbart kort øverst i Jarvis-visningen: kalender + tasks + innboks + vær (samme data som morgenbriefen, når som helst). Endepunkt `GET /brief/today`. |
 | **Abonnement-detektor** | 🟡 dvalende | 2026-06-08 | `/finance/advisor/subscriptions` — ferdig+testet, men `finance.transactions` tom (TODO #3). |
 | **Vær-verktøy (get_weather)** | 🟢 | 2026-06-08 | yr/MET, default Oslo. |
 | Styrkelogg / PT-regelbok / Health-Logg | 🟢 | 2026-06-08 | uendret + **PT-fiks:** daglig-kort bruker Strava-recency (ikke tom manuell logg) → anbefaler ikke gruppe trent i går. |
@@ -59,6 +60,9 @@ Disse låser opp ferdigbygde features — alt annet kjører.
 
 ## 🕐 Siste commits (nyeste øverst)
 **Backend (`mayo-ai-os`):**
+- `675644f` — GET /brief/today (kalender+tasks+innboks+vær som JSON) (06-08)
+- `288caad` — push stille-timer 23-07 + morgenbrief sender også push (06-08)
+- `539175f` — innboks-sammendrag i morgenbriefen (uleste 24t) (06-08)
 - `01a3f03` — voice-router /voice/jarvis (tale → Jarvis → verktøy) (06-08)
 - `57b7a8d` — web push backend (VAPID) + wir inn i proaktive features (06-08)
 - `6b148b5` — proaktiv dagbok-vokter (action items → tasks + Telegram) (06-08)
@@ -77,6 +81,7 @@ Disse låser opp ferdigbygde features — alt annet kjører.
 - `ec9fdd8` / `2086624` — Inc 1 DB-historikk + fjern duplikat profile.py (06-08)
 
 **Frontend (`mayo-os`):**
+- `a202ac2` — in-app «I dag»-brief (kalender+tasks+innboks+vær, kollapsbar) (06-08)
 - `08fd963` — web push (service worker + abonnement + «Varsler»-knapp) (06-08)
 - `20c4489` — Helse-nav → «Klar for økt» + Helse-dashboard-lenke (06-08)
 - `eb273fc` — modell/rute-velger + transparens-indikator (Inc 2) (06-08)
@@ -86,4 +91,5 @@ Disse låser opp ferdigbygde features — alt annet kjører.
 - **Stor Jarvis-økt 06-08 (autonom + interaktiv):** Inc 1–3 ferdig+live (minne, ruting+lokal Gemma, anonymizer m/ norsk NER). Det **proaktive laget** bygget: dagbok-vokter (journal → auto-task + varsel, lokal/🔴-trygt), trend-vakt (Whoop-tidligvarsel), morgenbrief-motor (én samlet 08:00-leveranse). **Gmail-lesing** + **iOS Web Push** (VAPID, self-hosted) + **voice-router** (`/voice/jarvis`: tale → Jarvis → verktøy). 5 bugfikser (PT Push-bug, Telegram-ukedag, vaner/mat, Helse-nav, monitor-alarm) + Whisper-oppstartsfiks + crm_task.tags-bug + 2 stuck Obs-Bygg-møter gjenopprettet.
 - **Mønstre/lærdom:** SSH-multipleks satt opp (`~/.ssh/config`, ControlMaster) — unngår rate-ban ved mange koblinger. db-api restart: KUN `sudo -n systemctl restart db-api` + poll. Heredoc med `$1`/quotes brytes av shell → bruk scp'd script-filer. 🔴 = ivf/økonomi aldri rått til sky (lokal Gemma eller anonymisert). Obs BYGG-møter = jobb (Claude OK, ikke 🔴).
 - **Venter på Mayo:** se «👉 HVA MAYO MÅ GJØRE» øverst.
+- **Capstone-batch 06-08 kveld:** morgenbriefen beriket m/ innboks (Gmail-lesing ulåst), morgenbrief sender nå også push, push fikk stille-timer 23-07, + nytt `/brief/today`-endepunkt og **in-app «I dag»-brief** i Jarvis (kalender+tasks+innboks+vær). Alt proaktivt verifisert schedulert (journal-vokter */30 kjører rent, trend-vakt 07:30, morgenbrief 06/07 UTC).
 - **IVF:** nedprioritert i kommunikasjon (Mayos ønske) — viktig fremover, men tonen må kalibreres med ham, ikke gjettes.
