@@ -24,7 +24,7 @@ Disse låser opp ferdigbygde features — alt annet kjører.
 
 | Komponent | Status | Sist verifisert | Notat |
 |---|---|---|---|
-| frontend (nginx 8086) | 🟢 | 2026-06-08 | mayooran.com · build a202ac2 |
+| frontend (nginx 8086) | 🟢 | 2026-06-08 | mayooran.com · build 13a91e5 |
 | db-api (8001) | 🟢 | 2026-06-08 | **Whisper pre-warm-timeout lagt til** (henger ikke lenger på oppstart) |
 | Whoop / Strava / Telegram / LiteLLM (4000) / Google Calendar | 🟢 | 2026-06-08 | uendret, fungerer |
 | **Gmail (lese + skrive)** | 🟢 | 2026-06-08 | re-auth gjort (gmail.readonly). Jarvis kan nå LESE/søke innboks (`search_emails`/`read_email`) + lage/sende utkast. E-post anonymiseres før sky. |
@@ -37,6 +37,7 @@ Disse låser opp ferdigbygde features — alt annet kjører.
 | **Trend-vakt (helse)** | 🟢 | 2026-06-08 | cron 07:30 UTC: Whoop recovery/HRV/RHR vs 7d-baseline → Telegram/push ved overtrening/sykdom-signal. |
 | **Morgenbrief-motor** | 🟢 | 2026-06-08 | 08:00-helserapporten samler nå recovery→økt + kalender (m/ konflikt) + topp-3 tasks + **innboks (uleste 24t)** + vær — og sender også **iOS-push**. Schedulert (cron 06,07 UTC). |
 | **In-app «I dag»-brief** | 🟢 | 2026-06-08 | kollapsbart kort øverst i Jarvis-visningen: kalender + tasks + innboks + vær (samme data som morgenbriefen, når som helst). Endepunkt `GET /brief/today`. |
+| **Viktig-e-post-flagging** | 🟢 | 2026-06-08 | morgenbrief + in-app-brief flagger **⚠️ viktige uleste** (penger/frist: inkasso/faktura/forfall...) via nøkkelord-match på emne (uleste 14d). **Lokalt — ingen LLM/sky.** Fanget en buried eFaktura fra inkassoselskap. |
 | **Abonnement-detektor** | 🟡 dvalende | 2026-06-08 | `/finance/advisor/subscriptions` — ferdig+testet, men `finance.transactions` tom (TODO #3). |
 | **Vær-verktøy (get_weather)** | 🟢 | 2026-06-08 | yr/MET, default Oslo. |
 | Styrkelogg / PT-regelbok / Health-Logg | 🟢 | 2026-06-08 | uendret + **PT-fiks:** daglig-kort bruker Strava-recency (ikke tom manuell logg) → anbefaler ikke gruppe trent i går. |
@@ -60,6 +61,7 @@ Disse låser opp ferdigbygde features — alt annet kjører.
 
 ## 🕐 Siste commits (nyeste øverst)
 **Backend (`mayo-ai-os`):**
+- `e195a54` — flagg viktige uleste e-poster (penger/frist) i brief (06-08)
 - `675644f` — GET /brief/today (kalender+tasks+innboks+vær som JSON) (06-08)
 - `288caad` — push stille-timer 23-07 + morgenbrief sender også push (06-08)
 - `539175f` — innboks-sammendrag i morgenbriefen (uleste 24t) (06-08)
@@ -81,6 +83,7 @@ Disse låser opp ferdigbygde features — alt annet kjører.
 - `ec9fdd8` / `2086624` — Inc 1 DB-historikk + fjern duplikat profile.py (06-08)
 
 **Frontend (`mayo-os`):**
+- `13a91e5` — flagg viktige e-poster (penger/frist) i «I dag»-kortet (06-08)
 - `a202ac2` — in-app «I dag»-brief (kalender+tasks+innboks+vær, kollapsbar) (06-08)
 - `08fd963` — web push (service worker + abonnement + «Varsler»-knapp) (06-08)
 - `20c4489` — Helse-nav → «Klar for økt» + Helse-dashboard-lenke (06-08)
