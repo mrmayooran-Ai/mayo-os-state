@@ -4,7 +4,7 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via public speil `mayo-os-state`.
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-08 · **Av:** Claude (autonom Jarvis-økt) · **Versjon:** v0.6 Jarvis
+**Sist oppdatert:** 2026-06-10 · **Av:** Claude (Coop møteopptaker-økt) · **Versjon:** v0.6.1 Jarvis + Obs BYGG-opptaker
 
 ---
 
@@ -12,11 +12,12 @@
 Disse låser opp ferdigbygde features — alt annet kjører.
 
 1. **iOS-varsler (web push):** På iPhone → åpne mayooran.com i Safari → Del → «Legg til på Hjem-skjerm» → åpne appen FRA hjem-skjerm-ikonet → Jarvis-fanen → trykk «🔔 Varsler» → Tillat. (iOS 16.4+.) Si ifra → jeg sender test-push. Da får du push fra dagbok-vokter + trend-vakt + (snart) morgenbrief.
-2. **iOS voice-shortcut → Jarvis:** Lag en Shortcut: *Record Audio* → *Get Contents of URL* (POST, `https://db.mayooran.com/voice/jarvis`, Header `X-Mobile-Token: <MOBILE_API_TOKEN>`, Request Body = Form, felt `audio` = opptaket) → *Get Dictionary Value* `response` → *Speak Text*. Legg på Hjem-skjerm/«Hey Siri». Endepunktet er live + testet.
+2. **iOS voice-shortcut → Jarvis:** Lag en Shortcut: *Record Audio* → *Get Contents of URL* (POST, `https://db.mayooran.com/voice/jarvis`, Header `X-Mobile-Token: <SET>`, Request Body = Form, felt `audio` = opptaket) → *Get Dictionary Value* `response` → *Speak Text*. Legg på Hjem-skjerm/«Hey Siri». Endepunktet er live + testet.
 3. **Enable Banking (bank):** Koble banken → låser opp abonnement-detektor + (kommende) inkasso-vakt + skatte-/likviditetsmotor. `finance.transactions` er tom til dette.
 4. **Vær-hjemsted:** Defaulter til Oslo (WEATHER_LAT/LON i .env). Si fra om annet sted.
-5. **Mac-Whisper-tunnel** (127.0.0.1:11436) er NEDE → møte-transkribering bruker treg VPS-Whisper. Start Mac-tjenesten + reverse-tunnel for rask transkribering.
+5. **Mac-Whisper-tunnel** (127.0.0.1:11436) er NEDE → møte-transkribering bruker treg VPS-Whisper. Start Mac-tjenesten + reverse-tunnel for rask transkribering. (Coop-opptakeren har egen Whisper på Tailscale — denne TODO gjelder mayooran.com-pipelinen.)
 6. **IVF-spor** (sensitivt): når du vil, gi input på *tonen* → da bygger jeg fase-bevisste påminnelser. Ikke gjettet autonomt.
+7. **🧹 Slett 5 junk-test-møter i `meeting`-tabellen** — laget under diagnostikk 06-10 (`b85703de…`, `31c3c7ef…`, `3b8eed98…`, `9a37b689…`, `d7b34391…`). DELETE-SQL klar i handover (`~/mayo-whisper/HANDOVER-obsbygg.md` §5.2). Sletting av rader er regel-messig brukerens å kjøre selv.
 
 ---
 
@@ -25,7 +26,7 @@ Disse låser opp ferdigbygde features — alt annet kjører.
 | Komponent | Status | Sist verifisert | Notat |
 |---|---|---|---|
 | frontend (nginx 8086) | 🟢 | 2026-06-08 | mayooran.com · build 13a91e5 |
-| db-api (8001) | 🟢 | 2026-06-08 | **Whisper pre-warm-timeout lagt til** (henger ikke lenger på oppstart) |
+| db-api (8001) | 🟢 | 2026-06-10 | Whisper pre-warm-timeout + **graceful Claude-fail-håndtering** (5abace9) |
 | Whoop / Strava / Telegram / LiteLLM (4000) / Google Calendar | 🟢 | 2026-06-08 | uendret, fungerer |
 | **Gmail (lese + skrive)** | 🟢 | 2026-06-08 | re-auth gjort (gmail.readonly). Jarvis kan nå LESE/søke innboks (`search_emails`/`read_email`) + lage/sende utkast. E-post anonymiseres før sky. |
 | **Jarvis Inc 1 — minne** | 🟢 | 2026-06-08 | chat-historikk i Postgres (overlever enheter); profil-MD `jarvis_memory` (wiret inn). |
@@ -37,62 +38,98 @@ Disse låser opp ferdigbygde features — alt annet kjører.
 | **Trend-vakt (helse)** | 🟢 | 2026-06-08 | cron 07:30 UTC: Whoop recovery/HRV/RHR vs 7d-baseline → Telegram/push ved overtrening/sykdom-signal. |
 | **Morgenbrief-motor** | 🟢 | 2026-06-08 | 08:00-helserapporten samler nå recovery→økt + kalender (m/ konflikt) + topp-3 tasks + **innboks (uleste 24t)** + vær — og sender også **iOS-push**. Schedulert (cron 06,07 UTC). |
 | **In-app «I dag»-brief** | 🟢 | 2026-06-08 | kollapsbart kort øverst i Jarvis-visningen: kalender + tasks + innboks + vær (samme data som morgenbriefen, når som helst). Endepunkt `GET /brief/today`. |
-| **Viktig-e-post-flagging** | 🟢 | 2026-06-08 | morgenbrief + in-app-brief flagger **⚠️ viktige uleste** (penger/frist: inkasso/faktura/forfall...) via nøkkelord-match på emne (uleste 14d). **Lokalt — ingen LLM/sky.** Fanget en buried eFaktura fra inkassoselskap. |
+| **Viktig-e-post-flagging** | 🟢 | 2026-06-08 | morgenbrief + in-app-brief flagger **⚠️ viktige uleste** (penger/frist) via nøkkelord-match. **Lokalt — ingen LLM/sky.** Fanget en buried eFaktura. |
 | **Abonnement-detektor** | 🟡 dvalende | 2026-06-08 | `/finance/advisor/subscriptions` — ferdig+testet, men `finance.transactions` tom (TODO #3). |
 | **Vær-verktøy (get_weather)** | 🟢 | 2026-06-08 | yr/MET, default Oslo. |
-| Styrkelogg / PT-regelbok / Health-Logg | 🟢 | 2026-06-08 | uendret + **PT-fiks:** daglig-kort bruker Strava-recency (ikke tom manuell logg) → anbefaler ikke gruppe trent i går. |
-| Assistent (Jarvis) `/assistent` | 🟢 | 2026-06-08 | **34 verktøy** (la til search_emails, read_email, get_weather). Helse-nav lander på «Klar for økt». |
-| Public state-mirror | 🟢 | 2026-06-08 | `mayo-os-state` · planleggeren leser den |
+| Styrkelogg / PT-regelbok / Health-Logg | 🟢 | 2026-06-08 | uendret + PT-fiks (Strava-recency, ikke tom manuell logg). |
+| Assistent (Jarvis) `/assistent` | 🟢 | 2026-06-08 | **34 verktøy**. Helse-nav lander på «Klar for økt». |
+| Public state-mirror | 🟢 | 2026-06-10 | `mayo-os-state` · planleggeren leser den |
+| **Coop møteopptaker (Mac, lokal :8765)** | 🟢 | 2026-06-10 | `meeting_local.py` i `~/mayo-whisper/`. **Alle 4 opprinnelige forespørsler live:** (a) responsivt fullhøyde-transkript, (b) speaker-diarisering m/ on-demand Ollama-knapp + editable navne-chips, (c) Notater-fane synket til Obs BYGG, (d) tag-autocomplete med prefiks-rangering + seedet norsk vokabular + "Opprett #X"-rad. Frontend single-file HTML/JS. Whisper: Tailscale 100.107.201.55:8081 (nb-whisper). Ollama: 100.107.201.55:11434 (qwen2.5:14b + llama3.1:8b fallback). |
+| **Diariserings-persistering** | 🟢 | 2026-06-10 | Redigerte navn følger inn i lagret `.md` + Obs BYGG-synk. To garantier: (1) name-anchored prompt — navn puttes direkte i Ollama-prompten som `[Geir]:`-merker, ikke remappet via uavhengig nummerering (BLOCKER-fix); (2) ord-token-multiset-vakt 3% — fanger droppede setninger, kan ikke lures av LLM-padding (MAJOR-fix). **Live-verifisert mot ekte Ollama:** 0/203 tokens tap på 1013-tegns norsk transkript; Ollama-down → ren tekst-fallback uten hang; æøå/proper nouns/numre bevart tegn-for-tegn. |
+| **launchd auto-start (Mac-opptaker)** | 🟢 | 2026-06-10 | `~/Library/LaunchAgents/com.mayo.meeting-recorder.plist`. KeepAlive (SuccessfulExit=false), ThrottleInterval=30s, ProcessType=Interactive. Logger til `~/Library/Logs/mayo-whisper/`. KeepAlive-testet 2x (kill -9 + SIGTERM → auto-restart). |
+| **Obs BYGG `/meeting/import` graceful** | 🟢 | 2026-06-10 | `meeting_import` pakker `claude_extract` i try/except (commit 5abace9). Hvis Claude feiler (401/quota/timeout) → møtet lagres `status=done` med transkript+base_tags+user_notes intakt, AI-felter tomme. Tidligere 500 verifisert borte. Aksepterer nå `user_notes` + `tags` fra Mac-opptaker. |
+| **`GET /meeting-tags`** | 🟢 | 2026-06-10 | Returnerer alle unike tagger på tvers av brukerens møter — for tag-autocomplete i Mac-opptakeren. Bindestrek (ikke `/meeting/tags`) for å unngå ruterkollisjon. Token-autentisert. |
 
 ## 🟡 Pågår / delvis
 - Web push + voice-router venter på Mayos engangs-oppsett (TODO #1, #2).
 - Abonnement-detektor dvalende til bank kobles (TODO #3).
+- Junk test-møter (5 stk) venter på Mayo's DELETE (TODO #7).
 
 ## 🔴 Åpne problemer
 - **`finance.transactions` tom** — Enable Banking ikke koblet → finans-features dvalende (TODO #3).
-- **Mac-Whisper-tunnel nede** (127.0.0.1:11436) → møte-transkribering bruker treg VPS-Whisper (TODO #5).
+- **Mac-Whisper-tunnel nede** (127.0.0.1:11436) → mayooran.com-pipelinen bruker treg VPS-Whisper (TODO #5). Coop-opptakeren har egen tunnel via Tailscale og påvirkes ikke.
 - **crm_task auto-task-bug fikset 06-08** (manglet `tags`-kolonne) — alle møte-tasks feilet stille; kolonne lagt til.
 
 ## 📋 Backlog (prioritert)
-- **Jarvis-bygg:** Inc 0–3 ✅ live. Inc 4 (base-persona + 8 ekspert-skills + persona-ruter), Inc 5 (RAG) gjenstår.
+- **Jarvis-bygg:** Inc 0–4 ✅ live. Inc 5 (RAG: pgvector journal semantic search → Jarvis chat) gjenstår.
 - **Proaktive lag bygd 06-08:** dagbok-vokter, trend-vakt, morgenbrief, web push, voice-router ✅.
+- **Coop-opptaker neste mulige løft (06-10):** rendre speaker-chips i Obs BYGG-frontend (data klar i `transcript_text` som `**Navn:**`); `speakers`-felt sendes som ekstra payload-nøkkel (VPS ignorerer i dag, fremtidsklart for fargede badges). Live-diariseringsstatus persisteres ikke ved page-refresh midt i opptak.
 - IVF-tidslinje (lokal, krever Mayos tone-input) · inkasso-vakt + skatte-/likviditetsmotor (krever bank) · per-person møteforberedelse (krever Inc 5 RAG).
 - Enable Banking-kobling · lokal modell-oppgradering · Obsidian-class editor.
 
 ## 🕐 Siste commits (nyeste øverst)
 **Backend (`mayo-ai-os`):**
+- `5abace9` — meeting/import: user_notes + extra tags fra Mac-opptaker + graceful Claude-fail + GET /meeting-tags (06-10)
+- `19e7807` — fix(privacy): robust anonymizer-import (dual-path) — fikset db-api oppstart-krasj
+- `86f3a3b` — feat(meeting): PATCH /meeting/{id}/summary — lagre redigert sammendrag + beslutninger
+- `536d623` — fix(privacy): Fase 1b — anonymiser 13 gjenværende sky-call-sites
+- `27c4a89` — docs: synk STATE.md — Inc 4 (persona-ruter) live
+- `30d0256` — feat(jarvis): Fase 3 — ekspert-persona-ruter med 9 personas
 - `e195a54` — flagg viktige uleste e-poster (penger/frist) i brief (06-08)
-- `675644f` — GET /brief/today (kalender+tasks+innboks+vær som JSON) (06-08)
+- `675644f` — GET /brief/today (06-08)
 - `288caad` — push stille-timer 23-07 + morgenbrief sender også push (06-08)
-- `539175f` — innboks-sammendrag i morgenbriefen (uleste 24t) (06-08)
-- `01a3f03` — voice-router /voice/jarvis (tale → Jarvis → verktøy) (06-08)
-- `57b7a8d` — web push backend (VAPID) + wir inn i proaktive features (06-08)
-- `6b148b5` — proaktiv dagbok-vokter (action items → tasks + Telegram) (06-08)
-- `df4c716` — morgenbrief-motor (kalender+tasks+vær i 08:00-rapporten) (06-08)
-- `4a61871` — trend-vakt (overtrening/sykdom-tidligvarsel) (06-08)
-- `3d9aa59` — get_weather-verktøy (yr/MET) (06-08)
-- `17f7da4` — abonnement-detektor (finance) (06-08)
-- `ae3b8ea` / `5901c23` — Gmail-lesing (search_emails/read_email) + metadata-fiks (06-08)
-- `77d42fe` — Whisper pre-warm-timeout (db-api henger ikke på oppstart) (06-08)
-- `45fa1ef` — Gemini → gemini-2.5-flash + tool-fri prompt for plain-modeller (06-08)
-- `6a132eb` / `b152131` — Inc 2 rute-matrise + C-knapp + lokal Gemma + pen feilmelding (06-08)
-- `f358794` — Inc 3 anonymizer-round-trip (norsk NER, 0 rå PII) (06-08)
-- `7c71ab3` — PT daily-kort bruker Strava-recency (Push-bug) (06-08)
-- `1813cec` — Telegram-ukedag-fiks + dropp vaner/mat-reminders (06-08)
-- `d9255cf` — monitor: morning-sjekk → calendar-briefing-daily (falsk alarm) (06-08)
-- `ec9fdd8` / `2086624` — Inc 1 DB-historikk + fjern duplikat profile.py (06-08)
+- `539175f` — innboks-sammendrag i morgenbriefen (06-08)
+- `01a3f03` — voice-router /voice/jarvis (06-08)
+- `57b7a8d` — web push backend (VAPID) (06-08)
+- `6b148b5` — proaktiv dagbok-vokter (06-08)
+- `df4c716` — morgenbrief-motor (06-08)
+- `4a61871` — trend-vakt (06-08)
+- `3d9aa59` — get_weather-verktøy (06-08)
+- `17f7da4` — abonnement-detektor (06-08)
+- `ae3b8ea` / `5901c23` — Gmail-lesing + metadata-fiks (06-08)
+- `77d42fe` — Whisper pre-warm-timeout (06-08)
+- `f358794` — Inc 3 anonymizer-round-trip (06-08)
 
 **Frontend (`mayo-os`):**
 - `13a91e5` — flagg viktige e-poster (penger/frist) i «I dag»-kortet (06-08)
-- `a202ac2` — in-app «I dag»-brief (kalender+tasks+innboks+vær, kollapsbar) (06-08)
-- `08fd963` — web push (service worker + abonnement + «Varsler»-knapp) (06-08)
-- `20c4489` — Helse-nav → «Klar for økt» + Helse-dashboard-lenke (06-08)
-- `eb273fc` — modell/rute-velger + transparens-indikator (Inc 2) (06-08)
+- `a202ac2` — in-app «I dag»-brief (06-08)
+- `08fd963` — web push (service worker) (06-08)
+- `20c4489` — Helse-nav → «Klar for økt» (06-08)
+- `eb273fc` — modell/rute-velger (Inc 2) (06-08)
 - `f1ba4d2` — DB-historikk i Assistent (Inc 1) (06-08)
 
+**Mac-side (uncommitted, lokalt på Mac-en — `/Users/mayo/mayo-whisper/`):**
+- `meeting_local.py` — diariserings-persistering m/ navn-anchored prompt + token-vakt + dual-format `_apply_speaker_names`; tag-autocomplete prefiks-rangering + seedet norsk vokabular + "Opprett #X"-rad; alle 4 opprinnelige feature-forespørsler implementert. (Ingen Git-repo på Mac-en for denne — kun lokal fil. Handover-dokument: `HANDOVER-obsbygg.md`.)
+- `~/Library/LaunchAgents/com.mayo.meeting-recorder.plist` — launchd auto-start, installert + KeepAlive-verifisert.
+- `~/.ssh/config` — `Host 37.27.248.55: KexAlgorithms -mlkem768x25519-sha256,sntrup761x25519-sha512@openssh.com` (permanent SSH-fiks — OpenSSH 10.2 default PQ-KEX hang med Ubuntu OpenSSH 9.6 pga PMTU).
+
 ## 📝 Til planleggeren (claude.ai)
-- **Stor Jarvis-økt 06-08 (autonom + interaktiv):** Inc 1–3 ferdig+live (minne, ruting+lokal Gemma, anonymizer m/ norsk NER). Det **proaktive laget** bygget: dagbok-vokter (journal → auto-task + varsel, lokal/🔴-trygt), trend-vakt (Whoop-tidligvarsel), morgenbrief-motor (én samlet 08:00-leveranse). **Gmail-lesing** + **iOS Web Push** (VAPID, self-hosted) + **voice-router** (`/voice/jarvis`: tale → Jarvis → verktøy). 5 bugfikser (PT Push-bug, Telegram-ukedag, vaner/mat, Helse-nav, monitor-alarm) + Whisper-oppstartsfiks + crm_task.tags-bug + 2 stuck Obs-Bygg-møter gjenopprettet.
-- **Mønstre/lærdom:** SSH-multipleks satt opp (`~/.ssh/config`, ControlMaster) — unngår rate-ban ved mange koblinger. db-api restart: KUN `sudo -n systemctl restart db-api` + poll. Heredoc med `$1`/quotes brytes av shell → bruk scp'd script-filer. 🔴 = ivf/økonomi aldri rått til sky (lokal Gemma eller anonymisert). Obs BYGG-møter = jobb (Claude OK, ikke 🔴).
-- **Venter på Mayo:** se «👉 HVA MAYO MÅ GJØRE» øverst.
-- **Capstone-batch 06-08 kveld:** morgenbriefen beriket m/ innboks (Gmail-lesing ulåst), morgenbrief sender nå også push, push fikk stille-timer 23-07, + nytt `/brief/today`-endepunkt og **in-app «I dag»-brief** i Jarvis (kalender+tasks+innboks+vær). Alt proaktivt verifisert schedulert (journal-vokter */30 kjører rent, trend-vakt 07:30, morgenbrief 06/07 UTC).
-- **IVF:** nedprioritert i kommunikasjon (Mayos ønske) — viktig fremover, men tonen må kalibreres med ham, ikke gjettes.
+
+### Coop møteopptaker-økt (2026-06-10) — alt levert
+1. **Alle 4 opprinnelige forespørsler ferdig & live** på Mac-opptakeren (`localhost:8765/?mode=fysisk`):
+   - Responsivt fullhøyde-transkript (flex column, viewport-tilpasset).
+   - Speaker-diarisering: on-demand Ollama-knapp ("🔍 Identifiser høyttalere"), `[Person N]:` markører i live-visning, fargede editable navne-chips som propagerer gjennom transkriptet.
+   - Notater-fane med auto-lagring (2s debounce), synket til Obs BYGG via `user_notes`-feltet.
+   - Tag-autocomplete: prefiks-rangering (eksakt > prefiks > delstreng → kortest → alfabetisk), seedet norsk vokabular (44 tagger inkl. `ukesstart`, `oppfølging`, `beslutning`), "➕ Opprett #X"-rad, prefiks uthevet.
+
+2. **Diariserings-persistering (kritisk fix)** — redigerte navn følger nå inn i lagret `.md` + Obs BYGG-synk. To garantier verifisert mot ekte Ollama med adversariell workflow (13 agenter, 5 vinkler):
+   - **Name-anchored prompt** (BLOCKER-fix): navn puttes direkte i prompten som `[Geir]:`-merker — modellen mapper etter innhold, ikke uavhengig rekkefølge → ingen name-swap mulig.
+   - **Ord-token-multiset-vakt** 3% (MAJOR-fix): erstattet 0.85 lengde-sjekk som lot LLM-padding skjule droppede setninger.
+   - Live-test: 0/203 tokens tap; Ollama-down → ren tekst-fallback uten hang.
+
+3. **VPS-fiks deployet** (commit `5abace9`): `meeting/import` pakker `claude_extract` i try/except (tidligere 500-bugen borte). Nytt `GET /meeting-tags` for autocomplete. `user_notes` og `tags` aksepteres fra Mac-opptaker.
+
+4. **Driftsforbedringer:**
+   - **launchd auto-start** for Mac-opptakeren (KeepAlive, ThrottleInterval=30s, logger til `~/Library/Logs/mayo-whisper/`).
+   - **SSH port 22 permanent fix** — OpenSSH 10.2 sin default `mlkem768x25519-sha256` PQ-KEX henger mot Ubuntu OpenSSH 9.6 (PMTU). Fikset i `~/.ssh/config`.
+
+5. **ANTHROPIC_API_KEY falsk alarm** — tidligere "401" var fra auth-middleware (manglet shortcut-token), ikke fra Anthropic. Live verifisert: `claude-sonnet-4-5` svarer; full `meeting/import` returnerer `action_items: 2`, anonymizer kjører (PERSON_N), `claude_cost_usd` metrert.
+
+### Mønstre/lærdom oppdatert
+- **Mac-only komponenter** (Coop-opptaker): single-file Python+HTML+JS i `~/mayo-whisper/meeting_local.py`. Ingen Git-repo lokalt. Hold separat fra mayooran.com — denne er **jobb-spor (Obs BYGG)**, ikke privat journal.
+- **Adversariell verifisering** før deploy av høy-risiko endringer (data-tap) lønner seg. Token-multiset-vakt > lengde-vakt for LLM-output-validering.
+- **SSH-feildiagnose** når TCP-koblingen lykkes men handshake henger → mistenk KEX-algoritme-mismatch eller PMTU på store key-pakker.
+
+### Venter på Mayo
+- TODO #7: Slett 5 junk-test-møter fra DB (DELETE-SQL klar).
+- Øvrige TODOs (1-6) uendret fra forrige økt.
