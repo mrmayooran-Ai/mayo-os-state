@@ -4,7 +4,7 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-11 · **Av:** Claude (refleksjon-pille + Tasks↔Reminders sync-layer + Journal-spec gjennomgang) · **Versjon:** v0.7 Jarvis + Obs BYGG-web + Journal psykolog-lag
+**Sist oppdatert:** 2026-06-12 · **Av:** Claude (refleksjon-pille MERGET+deployet · sync-layer på master · Whoop re-auth blokkert) · **Versjon:** v0.7 Jarvis + Obs BYGG-web + Journal psykolog-lag
 
 ---
 
@@ -60,11 +60,12 @@ Disse låser opp ferdigbygde features — alt annet kjører.
 - Web push + voice-router venter på Mayos engangs-oppsett (TODO #1, #2).
 - Abonnement-detektor dvalende til bank kobles (TODO #3).
 - Junk test-møter (5 stk) venter på Mayo's DELETE (TODO #7).
-- **Refleksjon-pille backend-fix (8c9bfe1)** — kode klar (branch `claude/confident-noether-lpacih`, PR #3), venter VPS-deploy + `restart db-api`.
-- **Tasks↔Apple Reminders sync-layer (2cc8e0c)** — kode + migrasjon + 13 tester klare, **feature-flagget AV**. Venter aktivering på VPS (TODO #9). Pending-decision (CLAUDE.md) er nå RESOLVED → B (sync-layer).
+- **Refleksjon-pille backend-fix (8c9bfe1)** — ✅ MERGET til master (`df4452b`, PR #3) + gren-deployet på VPS (Mayo restartet db-api 06-12 ~00:30). API svarer (app-level 403 «Host not in allowlist» = oppe). Pille-verifisering hos Mayo på telefon gjenstår.
+- **Tasks↔Apple Reminders sync-layer (2cc8e0c)** — ✅ kode på master (PR #3 merget), **feature-flagget AV**. Venter aktivering på VPS (TODO #9: migrasjon 005 + `TASK_REMINDER_SYNC=1` + «Mayo OS»-liste). Pending-decision RESOLVED → B.
 
 ## 🔴 Åpne problemer
 - **Whoop 502 — ROTAARSAK FUNNET + fikset (06-11), krever EN re-auth (TODO #8).** Refresh-token-reuse-race: samtidige /whoop-kall refresha access-token uten laas → Whoop revokerte hele token-kjeden → vedvarende 400 invalid_request. Fikset med dobbelsjekket asyncio.Lock (9f6ad11). Token-kjeden er fortsatt revokert → Mayo maa re-autorisere EN gang, deretter holder laasen den i live.
+- **🔴 Whoop re-auth BLOKKERT (06-12):** `/whoop-auth` → Whoop avviser med `error=request_forbidden` («The request is not allowed») FØR innlogging. Ikke token-racet — det er en OAuth-config-avvisning på Whoop sin side. Mest sannsynlig: redirect-URI ikke registrert eksakt (`https://db.mayooran.com/whoop-auth`) i Whoop Developer Dashboard, eller appen er disabled/under review (kan ha blitt flagget av reuse-racet). Sjekk OGSÅ scopes (`read:recovery read:sleep read:cycles read:profile offline`) + at `WHOOP_CLIENT_ID` matcher appen. Fiks ligger i Whoop-dashboardet, ikke i koden. (Tilbud: `?debug=1`-diagnostikk-endepunkt kan bygges.)
 - ✅ **Frontend DEPLOYET (06-11 16:31)** — mayooran.com serverer naa `28cbc97` (Obs BYGG §1.1-1.7 + Journal §2 LIVE inkl. design-fidelity-fikser). Deploy-repo `~/mayo-os-deploy` byttet main → feat/whoop-redesign (fetch-refspec var kun main → maatte hente grenen eksplisitt). PR #14 staar fortsatt aapen for evt. senere merge til main.
 - **`finance.transactions` tom** — Enable Banking ikke koblet → finans-features dvalende (TODO #3).
 - **Mac-Whisper-tunnel nede** (127.0.0.1:11436) → mayooran.com-pipelinen bruker treg VPS-Whisper (TODO #5). Coop-opptakeren har egen tunnel via Tailscale og påvirkes ikke.
