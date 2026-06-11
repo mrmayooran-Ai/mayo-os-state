@@ -4,7 +4,7 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-11 · **Av:** Claude (refleksjon-pille + Tasks↔Reminders sync-layer) · **Versjon:** v0.7 Jarvis + Obs BYGG-web + Journal psykolog-lag
+**Sist oppdatert:** 2026-06-11 · **Av:** Claude (refleksjon-pille + Tasks↔Reminders sync-layer + Journal-spec gjennomgang) · **Versjon:** v0.7 Jarvis + Obs BYGG-web + Journal psykolog-lag
 
 ---
 
@@ -76,6 +76,7 @@ Disse låser opp ferdigbygde features — alt annet kjører.
 - ✅ **Coop-opptaker speaker-chips i Obs BYGG-frontend (06-11):** ferdig — §1.2 speaker-diariserings-UI med fargede chips + inline rename + on-demand Ollama. Live-diariseringsstatus persisteres fortsatt ikke ved page-refresh midt i opptak (mindre).
 - IVF-tidslinje (lokal, krever Mayos tone-input) · inkasso-vakt + skatte-/likviditetsmotor (krever bank) · per-person møteforberedelse (krever Inc 5 RAG).
 - Enable Banking-kobling · lokal modell-oppgradering · Obsidian-class editor.
+- **Journal-spec gjennomgått (06-11):** §1–6 i praksis fullt bygd & live (audit på `feat/whoop-redesign`, se HANDOVER_RESULT). Gjenstår KUN 3 §7.3-punkter (Mayo-gated, IKKE bygd): mood-kurve over uker · «verktøy vi har øvd på»-liste · emnetagg→relaterte-entries drill-down. Kart-fanen = Fase-2-mockup (venter `{lat,lon}`). Frontend leser per-entry `entry.reflection` fra backend → refleksjon-fix `8c9bfe1` tenner pillen ved deploy.
 
 ## 🕐 Siste commits (nyeste øverst)
 **Backend (`mayo-ai-os`):**

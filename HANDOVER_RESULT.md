@@ -105,3 +105,44 @@ Apple-side **sletting** krever én liten utvidelse av iOS-Shortcuten: les
 `delete_queue` fra `/reminders/bulk-sync`-svaret og slett de `ios_uid`-ene fra Apple
 Reminders. Uten det fjernes oppgaven i Mayo OS + DB, men den lenkede Apple-reminderen
 kan henge igjen (aldri datatap). Resten av sync-en virker uten Shortcut-endring.
+
+---
+
+# HANDOVER_RESULT — Journal (Brain) spec-gjennomgang (2026-06-11)
+
+Gjennomgang av design-Claudes konsoliderte Journal-spec mot faktisk frontend på
+`origin/feat/whoop-redesign` (read-only audit, 10 filer). **Konklusjon: §1–6 er i
+praksis fullt bygd og live; kun 3 §7.3-punkter gjenstår (og §7 er eksplisitt
+Mayo-gated → IKKE bygd autonomt).**
+
+### Bekreftet live (§1–6)
+Faner/struktur (PRIMARY+MORE_TABS, MoreSheet, magenta), Tidslinje (søk, composer,
+dato-filter, dividers skjult ved søk, '99:99'-anker, EntryCard m/ 10 moods + pille,
+FAB, `PSYCH.touch()` umiddelbart ved create/delete, 2,6 s debounce ved edit), Editor
+(toolbar B/i/H/•/❝/`[[ ]]`/📷 + 👁, `renderEntryMd`, Detaljer m/ AI_TAGS + «lignende
+entries»), Psykolog (per-entry pille, PsychSummaryCard-dividers, Innsikt m/ per-uke
+søylegraf + delta-kort + levende-prikk, Samtale m/ «🔒 privat · lokal modell»),
+Oversikt/Kalender/Media/Graph — alle implementert med fil:linje-bevis.
+
+### 🔗 Viktig kobling
+Frontend leser per-entry refleksjon fra **backend-feltene** `entry.reflection` +
+`entry.reflection_model` (`PageJournal.jsx:324`, `isSafeReflection` i `psych.js`).
+⇒ Refleksjon-pille-fixen i denne økten (`8c9bfe1`) er nettopp det som tenner pillen
+når backend deployes. §4-kontrakten er dermed lukket.
+
+### Gjenstår — KUN §7.3 (Mayo-gated, IKKE bygd; avklar tone/prioritet)
+1. **Mood-kurve over ukene** i Innsikt (i dag: mood-prikker + per-tema søyler, ingen
+   trend-linje over tid).
+2. **«Verktøy vi har øvd på»-liste** (helt fraværende — fremtidig).
+3. **Emnetagg → relaterte entries** drill-down (Innsikt filtrerer ukelista, ikke
+   entry-lista — ingen «vis alle #trening-entries fra mai»).
+- **Kart-fanen** er en Fase-2-mockup (hash-pseudokoordinater) til backend gir
+  `{lat,lon}`. Vault-fanen er derimot reelt implementert (ikke placeholder).
+
+### Personvern verifisert
+`isSafeReflection()` skjuler 🔴-domene-refleksjon med mindre `reflection_model==='local'`;
+backend-regelen er dokumentert i `psych.js`. 10 moods komplette. Ingen jobb/privat-
+blanding observert.
+
+**Anbefaling:** ingen autonom frontend-bygging her (branch-regler + §7-gate). Når
+Mayo vil ha §7.3-punktene, gi tone/prioritet → bygges da. Spec er ellers «ferdig».
