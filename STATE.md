@@ -1,7 +1,7 @@
 # STATE.md — Mayo OS levende tilstand
 
 > **Dette er sannheten.** Oppdateres som SISTE handling i hver oppgave.
-> Planleggeren (claude.ai) leser denne FØRST i hver økt, via public speil `mayo-os-state`.
+> Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
 **Sist oppdatert:** 2026-06-11 · **Av:** Claude (Obs BYGG web + Journal design v1.1-økt) · **Versjon:** v0.7 Jarvis + Obs BYGG-web + Journal psykolog-lag
