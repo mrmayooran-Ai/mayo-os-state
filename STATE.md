@@ -17,6 +17,7 @@ Disse låser opp ferdigbygde features — alt annet kjører.
 4. **Vær-hjemsted:** Defaulter til Oslo (WEATHER_LAT/LON i .env). Si fra om annet sted.
 5. **Mac-Whisper-tunnel** (127.0.0.1:11436) er NEDE → møte-transkribering bruker treg VPS-Whisper. Start Mac-tjenesten + reverse-tunnel for rask transkribering. (Coop-opptakeren har egen Whisper på Tailscale — denne TODO gjelder mayooran.com-pipelinen.)
 6. **IVF-spor** (sensitivt): når du vil, gi input på *tonen* → da bygger jeg fase-bevisste påminnelser. Ikke gjettet autonomt.
+8. **🔄 Re-autoriser Whoop (1 gang):** aapne **https://db.mayooran.com/whoop-auth** i nettleser → logg inn Whoop → godkjenn. Token-kjeden ble revokert av en reuse-race (naa fikset med laas, 9f6ad11). Etter dette virker Whoop-data + trend-vakt igjen.
 7. **🧹 Slett 5 junk-test-møter i `meeting`-tabellen** — laget under diagnostikk 06-10 (`b85703de…`, `31c3c7ef…`, `3b8eed98…`, `9a37b689…`, `d7b34391…`). DELETE-SQL klar i handover (`~/mayo-whisper/HANDOVER-obsbygg.md` §5.2). Sletting av rader er regel-messig brukerens å kjøre selv.
 
 ---
@@ -59,8 +60,8 @@ Disse låser opp ferdigbygde features — alt annet kjører.
 - Junk test-møter (5 stk) venter på Mayo's DELETE (TODO #7).
 
 ## 🔴 Åpne problemer
-- **Whoop `/whoop` 502 intermitterende (06-11)** — live-fetch (ingen sync-jobb) feiler innimellom (oppstrøms/timeout, returnerer HTML-feilside). Helse-siden viser tom Whoop ved 502. Trend-vakt poller naa hver 30 min og retry-fanger et 200, men ROTAARSAK ikke fikset.
-- **Frontend ikke deployet (06-11)** — Obs BYGG §1.x + Journal §2 ligger pushet paa `feat/whoop-redesign`, men mayooran.com serverer `cbdb460` (i gaar). PR #14 aapen men UNSTABLE (Vercel-CI feiler). Avventer deploy-beslutning (rask: bygg redesign-grenen direkte / ryddig: fiks CI + merge main).
+- **Whoop 502 — ROTAARSAK FUNNET + fikset (06-11), krever EN re-auth (TODO #8).** Refresh-token-reuse-race: samtidige /whoop-kall refresha access-token uten laas → Whoop revokerte hele token-kjeden → vedvarende 400 invalid_request. Fikset med dobbelsjekket asyncio.Lock (9f6ad11). Token-kjeden er fortsatt revokert → Mayo maa re-autorisere EN gang, deretter holder laasen den i live.
+- ✅ **Frontend DEPLOYET (06-11 16:03)** — mayooran.com serverer naa `03f40b8` (Obs BYGG §1.1-1.7 + Journal §2 LIVE). Deploy-repo `~/mayo-os-deploy` byttet main → feat/whoop-redesign (fetch-refspec var kun main → maatte hente grenen eksplisitt). PR #14 staar fortsatt aapen for evt. senere merge til main.
 - **`finance.transactions` tom** — Enable Banking ikke koblet → finans-features dvalende (TODO #3).
 - **Mac-Whisper-tunnel nede** (127.0.0.1:11436) → mayooran.com-pipelinen bruker treg VPS-Whisper (TODO #5). Coop-opptakeren har egen tunnel via Tailscale og påvirkes ikke.
 - **crm_task auto-task-bug fikset 06-08** (manglet `tags`-kolonne) — alle møte-tasks feilet stille; kolonne lagt til.
@@ -74,6 +75,7 @@ Disse låser opp ferdigbygde features — alt annet kjører.
 
 ## 🕐 Siste commits (nyeste øverst)
 **Backend (`mayo-ai-os`):**
+- `9f6ad11` — fix(whoop): async-laas rundt token-refresh (reuse-race revokerte kjeden) + manglende asyncio-import (06-11)
 - `c909796` — fix(ops): demp falsk evening-alarm + privacy-import (news/psykolog) + trend-vakt data-klar-gate hver 30 min (06-11)
 - `4eeeed0` — fix(security): filter meeting_action_item DELETE by user_id (06-11)
 - `21e8d26` — feat: design v1.1 §1.3/1.6/1.7 backend — sync-opt-in, vedlegg, work-notes (06-11)
