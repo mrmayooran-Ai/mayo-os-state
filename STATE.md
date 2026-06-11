@@ -59,6 +59,8 @@ Disse låser opp ferdigbygde features — alt annet kjører.
 - Junk test-møter (5 stk) venter på Mayo's DELETE (TODO #7).
 
 ## 🔴 Åpne problemer
+- **Whoop `/whoop` 502 intermitterende (06-11)** — live-fetch (ingen sync-jobb) feiler innimellom (oppstrøms/timeout, returnerer HTML-feilside). Helse-siden viser tom Whoop ved 502. Trend-vakt poller naa hver 30 min og retry-fanger et 200, men ROTAARSAK ikke fikset.
+- **Frontend ikke deployet (06-11)** — Obs BYGG §1.x + Journal §2 ligger pushet paa `feat/whoop-redesign`, men mayooran.com serverer `cbdb460` (i gaar). PR #14 aapen men UNSTABLE (Vercel-CI feiler). Avventer deploy-beslutning (rask: bygg redesign-grenen direkte / ryddig: fiks CI + merge main).
 - **`finance.transactions` tom** — Enable Banking ikke koblet → finans-features dvalende (TODO #3).
 - **Mac-Whisper-tunnel nede** (127.0.0.1:11436) → mayooran.com-pipelinen bruker treg VPS-Whisper (TODO #5). Coop-opptakeren har egen tunnel via Tailscale og påvirkes ikke.
 - **crm_task auto-task-bug fikset 06-08** (manglet `tags`-kolonne) — alle møte-tasks feilet stille; kolonne lagt til.
@@ -72,6 +74,7 @@ Disse låser opp ferdigbygde features — alt annet kjører.
 
 ## 🕐 Siste commits (nyeste øverst)
 **Backend (`mayo-ai-os`):**
+- `c909796` — fix(ops): demp falsk evening-alarm + privacy-import (news/psykolog) + trend-vakt data-klar-gate hver 30 min (06-11)
 - `4eeeed0` — fix(security): filter meeting_action_item DELETE by user_id (06-11)
 - `21e8d26` — feat: design v1.1 §1.3/1.6/1.7 backend — sync-opt-in, vedlegg, work-notes (06-11)
 - `d1262c5` — feat: reanalyze + rename-speaker + tag frequency {tag,count} (06-11)
@@ -122,6 +125,13 @@ Implementerte HELE design-handoveren (`HANDOVER-design-obsbygg-journal.md`): Obs
 - **Kvalitet**: 2 adversarielle review-runder (16+16 agenter) → 0 suverenitetsbrudd; fikset kritisk user_id-isolasjon (action-item DELETE), XSS-sanering, autosave-race, paste-guard. Live-verifisert alle flater i browser.
 - **Pushet til GitHub**: mayo-os `feat/whoop-redesign` + mayo-ai-os `master` (38 upushede commits synket). Git-identitet fikset → `mr.mayooran@gmail.com`.
 - **Gjenstår**: handover §4 (mood-kurve, drag-reschedule, vedlegg-noder) — eksplisitt «avklar med Mayo», ikke bygd. Journal §2.3 backend-regenerering (event-drevet lokal modell) — seed-mock i dag.
+
+### Drift/ops-fikser (2026-06-11)
+Trigget av Telegram-monitor-alarm + Mayo-rapport om manglende endringer/Whoop:
+- **Falsk evening-alarm dempet**: kveldsmeldingen ble bevisst disablet 06-08 (personvern), men monitoren voktet fortsatt loggen → fjernet sjekken.
+- **To tjenester fikset**: `news-digest` + `psycholog-connect-daily` feilet daglig med `ModuleNotFoundError: privacy` → repo-rot paa sys.path.
+- **Trend-vakt ombygd** (Mayo-krav): hver 30 min 05-10 Oslo, DATA-KLAR-gate (sender ALDRI for dagens recovery er publisert), en gang/dag, 502-retry.
+- **AAPENT**: Whoop-502 rotaarsak + frontend-deploy (se Aapne problemer). Git-identitet fikset → mr.mayooran@gmail.com. `mayo-os-state` boer settes privat (GitHub-connector dekker planleggeren).
 
 
 ### Coop møteopptaker-økt (2026-06-10) — alt levert
