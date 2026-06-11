@@ -4,7 +4,7 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-11 · **Av:** Claude (refleksjon-pille backend-wiring) · **Versjon:** v0.7 Jarvis + Obs BYGG-web + Journal psykolog-lag
+**Sist oppdatert:** 2026-06-11 · **Av:** Claude (refleksjon-pille + Tasks↔Reminders sync-layer) · **Versjon:** v0.7 Jarvis + Obs BYGG-web + Journal psykolog-lag
 
 ---
 
@@ -19,6 +19,7 @@ Disse låser opp ferdigbygde features — alt annet kjører.
 6. **IVF-spor** (sensitivt): når du vil, gi input på *tonen* → da bygger jeg fase-bevisste påminnelser. Ikke gjettet autonomt.
 8. **🔄 Re-autoriser Whoop (1 gang):** aapne **https://db.mayooran.com/whoop-auth** i nettleser → logg inn Whoop → godkjenn. Token-kjeden ble revokert av en reuse-race (naa fikset med laas, 9f6ad11). Etter dette virker Whoop-data + trend-vakt igjen.
 7. **🧹 Slett 5 junk-test-møter i `meeting`-tabellen** — laget under diagnostikk 06-10 (`b85703de…`, `31c3c7ef…`, `3b8eed98…`, `9a37b689…`, `d7b34391…`). DELETE-SQL klar i handover (`~/mayo-whisper/HANDOVER-obsbygg.md` §5.2). Sletting av rader er regel-messig brukerens å kjøre selv.
+9. **🔗 Aktiver Tasks↔Apple Reminders sync** (ny, 2cc8e0c — feature-flagget AV): (a) kjør `migrations/005_task_reminder_sync.sql`, (b) lag Apple-liste **«Mayo OS»** på iPhone (eller sett `TASK_SYNC_LIST` i .env), (c) sett `TASK_REMINDER_SYNC=1` i .env + `systemctl restart db-api`. Da speiles oppgaver begge veier (nyeste vinner, speilet sletting). (d) Valgfritt: utvid iOS-Shortcuten til å prosessere `delete_queue` fra `/reminders/bulk-sync` så sletting også når Apple. Detaljer i HANDOVER_RESULT.
 
 ---
 
@@ -59,6 +60,8 @@ Disse låser opp ferdigbygde features — alt annet kjører.
 - Web push + voice-router venter på Mayos engangs-oppsett (TODO #1, #2).
 - Abonnement-detektor dvalende til bank kobles (TODO #3).
 - Junk test-møter (5 stk) venter på Mayo's DELETE (TODO #7).
+- **Refleksjon-pille backend-fix (8c9bfe1)** — kode klar (branch `claude/confident-noether-lpacih`, PR #3), venter VPS-deploy + `restart db-api`.
+- **Tasks↔Apple Reminders sync-layer (2cc8e0c)** — kode + migrasjon + 13 tester klare, **feature-flagget AV**. Venter aktivering på VPS (TODO #9). Pending-decision (CLAUDE.md) er nå RESOLVED → B (sync-layer).
 
 ## 🔴 Åpne problemer
 - **Whoop 502 — ROTAARSAK FUNNET + fikset (06-11), krever EN re-auth (TODO #8).** Refresh-token-reuse-race: samtidige /whoop-kall refresha access-token uten laas → Whoop revokerte hele token-kjeden → vedvarende 400 invalid_request. Fikset med dobbelsjekket asyncio.Lock (9f6ad11). Token-kjeden er fortsatt revokert → Mayo maa re-autorisere EN gang, deretter holder laasen den i live.
@@ -76,6 +79,7 @@ Disse låser opp ferdigbygde features — alt annet kjører.
 
 ## 🕐 Siste commits (nyeste øverst)
 **Backend (`mayo-ai-os`):**
+- `2cc8e0c` — feat(tasks): bidireksjonell crm_task↔Apple Reminders sync-layer (migrasjon 005 + task_sync.py + /tasks-hooks + bulk-sync revers + reconcile). Feature-flag `TASK_REMINDER_SYNC=0`. Branch `claude/confident-noether-lpacih`, IKKE aktivert enda (06-11)
 - `8c9bfe1` — fix(journal): surface per-dag psykolog-refleksjon i GET /journal (reflection + reflection_model='local') → refleksjon-pillen vises. Branch `claude/confident-noether-lpacih`, IKKE deployet enda (06-11)
 - `9f6ad11` — fix(whoop): async-laas rundt token-refresh (reuse-race revokerte kjeden) + manglende asyncio-import (06-11)
 - `c909796` — fix(ops): demp falsk evening-alarm + privacy-import (news/psykolog) + trend-vakt data-klar-gate hver 30 min (06-11)

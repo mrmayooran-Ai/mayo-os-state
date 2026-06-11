@@ -58,3 +58,50 @@ frontend-endring** — `feat/whoop-redesign` (live `28cbc97`) leser allerede
 3. **Kjent begrensning:** `psykolog_short` er per dag, mens designet sa «per
    entry». Pillen viser dagens refleksjon på dagens nyeste entry. Ekte per-entry
    krever at `enrich_pipeline` genererer per `## HH:MM`-seksjon (større endring).
+
+---
+
+# HANDOVER_RESULT — Tasks ↔ Apple Reminders sync-layer (2026-06-11)
+
+Pending decision (CLAUDE.md) RESOLVED: Mayo valgte **B (sync-layer)**. Valg:
+dedikert liste · nyeste-vinner · speilet sletting · inline+periodisk.
+
+## Arkitektur
+Apple har ingen sky-API → all enhets-sync rir på den eksisterende iOS Shortcut-broen
+(`/reminders/bulk-sync`-kø). `crm_task → Apple` = lag/oppdater en lenket `reminder`-rad
+(`source='local'`, `sync_state='pending_push'`); køen leverer den til iOS og
+`ios-ack` setter `ios_uid`. `Apple → crm_task` hekter på bulk-sync-upserten. De to
+tabellene forblir separate (ingen merge).
+
+## Levert (commit `2cc8e0c`, branch `claude/confident-noether-lpacih`, PR #3)
+- **`migrations/005_task_reminder_sync.sql`** (idempotent): lenke-kolonner
+  `crm_task.reminder_id`/`sync_origin`/`synced_at` + `reminder.crm_task_id`, pluss to
+  hygiene-fikser: `crm_task.tags` (manglet i migrasjonene) og defensiv guard fordi
+  `reminder`-tabellen ikke er i repo-migrasjonene (opprettes utenfor repo på VPS).
+- **`modules/reminders/task_sync.py`**: rene hjelpere (scope, felt-mapping,
+  newest-wins `decide_direction`) + tynn DB-glue (`apply_task_change`,
+  `apply_task_delete`, `apply_reminder_change`, `delete_tasks_for_missing_reminders`,
+  `reconcile_once`).
+- **`server.py`**: inline bakgrunns-hooks på POST/PATCH/DELETE `/tasks`; revers-sync +
+  speilet sletting + `delete_queue` i `/reminders/bulk-sync`; 5-min reconcile-loop ved
+  oppstart. **Alt gated av `TASK_REMINDER_SYNC=1` (default AV)** og pakket i try/except
+  så en sync-feil aldri bryter `/tasks`.
+- **`tests/test_task_reminder_sync.py`**: 13 rene enhetstester (uten fastapi/DB).
+
+## Verifisert her
+`py_compile` (3.12) for `server.py` + `task_sync.py`; **13/13** sync-tester +
+**5/5** refleksjon-tester grønne. Ingen intern Python-kaller bruker `/tasks`-handlerne
+direkte (kun HTTP-ruting), så ny `BackgroundTasks`-param bryter ingenting.
+
+## Aktivering (Mayo/VPS — TODO #9)
+1. Kjør `migrations/005_task_reminder_sync.sql`.
+2. Lag Apple-liste **«Mayo OS»** på iPhone (eller sett `TASK_SYNC_LIST=<navn>`).
+3. `TASK_REMINDER_SYNC=1` i `.env` + `sudo systemctl restart db-api`.
+4. Verifiser: lag en task i Mayo OS → den havner i «Mayo OS»-lista i Apple etter neste
+   Shortcut-bulk-sync; fullfør i Apple → tasken avmerkes i Mayo OS.
+
+## Kjent begrensning
+Apple-side **sletting** krever én liten utvidelse av iOS-Shortcuten: les
+`delete_queue` fra `/reminders/bulk-sync`-svaret og slett de `ios_uid`-ene fra Apple
+Reminders. Uten det fjernes oppgaven i Mayo OS + DB, men den lenkede Apple-reminderen
+kan henge igjen (aldri datatap). Resten av sync-en virker uten Shortcut-endring.
