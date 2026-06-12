@@ -60,7 +60,7 @@ Disse låser opp ferdigbygde features — alt annet kjører.
 - Web push + voice-router venter på Mayos engangs-oppsett (TODO #1, #2).
 - Abonnement-detektor dvalende til bank kobles (TODO #3).
 - Junk test-møter (5 stk) venter på Mayo's DELETE (TODO #7).
-- **Refleksjon-pille backend-fix (8c9bfe1)** — ✅ MERGET til master (`df4452b`, PR #3) + gren-deployet på VPS (Mayo restartet db-api 06-12 ~00:30). API svarer (app-level 403 «Host not in allowlist» = oppe). Pille-verifisering hos Mayo på telefon gjenstår.
+- **Refleksjon-pille backend-fix (8c9bfe1)** — ✅ **LIVE & verifisert 06-12:** `/journal` returnerer `reflection` på **18/31 entries** etter ren restart. Rotårsak var IKKE kode — gammel db-api-prosess (41 min) hadde aldri lastet ny kode; tidligere `systemctl restart` syklet den ikke. Fix: tøm `__pycache__` + restart → fersk prosess lastet koden. Pille vises i app etter hard-refresh.
 - **Tasks↔Apple Reminders sync-layer (2cc8e0c)** — ✅ kode på master (PR #3 merget), **feature-flagget AV**. Venter aktivering på VPS (TODO #9: migrasjon 005 + `TASK_REMINDER_SYNC=1` + «Mayo OS»-liste). Pending-decision RESOLVED → B.
 
 ## 🔴 Åpne problemer
