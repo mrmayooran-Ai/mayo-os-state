@@ -4,7 +4,7 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-12 · **Av:** Claude (Etappe 2 + infra: deploy.sh, Whoop-debug, kalender tapp-dag, Innsikt-arkiv, GH Action) · **Versjon:** v0.7 Jarvis + Obs BYGG-web + Journal psykolog-lag
+**Sist oppdatert:** 2026-06-13 · **Av:** Claude (Livsplanlegger Fase 1 — item-motor + suverenitets-vegg) · **Versjon:** v0.8 Livsplanlegger Fase 1
 
 ---
 
@@ -57,6 +57,7 @@ Disse låser opp ferdigbygde features — alt annet kjører.
 | **DB: sync_enabled + meeting_attachment + work_note** | 🟢 | 2026-06-11 | Migrasjon 004 (idempotent). Vedlegg i `/home/mayo/MayoVault/obs-bygg/attachments/` m/ path-traversal-vakt. Alle queries user_id-filtrert (review fant+fikset manglende filter i action-item DELETE → 4eeeed0). |
 
 ## 🟡 Pågår / delvis
+- **🚀 Livsplanlegger Fase 1 — motoren (BE `6895123`)** — kanonisk `item`-modell (migrasjon 006: item-tre + life_area 6-seedet + context_bucket), `item_logic.py` (board, today+soft-cap-3, L0-formel, SUVERENITETS-vegg: filter_track/assert_no_private_leak I1 + read-only synket jobb-item), `item_module.py`-router (POST/GET/PATCH/DELETE /items + /board //today /contexts /subtasks). 11 tester (40/40 totalt). **Additivt — rører IKKE journal-vokter/reminder-sync.** Beslutninger 2026-06-13: crm_task speiles, jobb read-only+lokal planlegging, kontekst seedet+egne, L0-formler v1. Design-handover lest mot mocks (aligner). **Venter:** kjør migrasjon 006 + `./deploy.sh`. **Gjenstår Fase 1:** crm_task→item speil-backfill, journal-vokter-repoint, frontend-port (triage/inbox/«3 i dag» fra mocks på feat-grenen). Specs: `docs/superpowers/specs/2026-06-13-livsplanlegger*.md`.
 - Web push + voice-router venter på Mayos engangs-oppsett (TODO #1, #2).
 - Abonnement-detektor dvalende til bank kobles (TODO #3).
 - Junk test-møter (5 stk) venter på Mayo's DELETE (TODO #7).
