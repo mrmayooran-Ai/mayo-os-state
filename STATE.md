@@ -4,7 +4,60 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-11 · **Av:** Claude (Obs BYGG web + Journal design v1.1-økt) · **Versjon:** v0.7 Jarvis + Obs BYGG-web + Journal psykolog-lag
+**Sist oppdatert:** 2026-06-14 · **Av:** Claude (gcal-synk Fase 1: bygd, ikke aktivert) · **Versjon:** v0.10 app→Google synklag staget bak flagg
+
+---
+
+## 🆕 Siste (2026-06-14, kveld) — App→Google Calendar synk (Fase 1) staget
+
+Backend (`mayo-ai-os`, `claude/confident-noether-lpacih`, fire commits):
+
+- **Migrasjon 007** (`e722e59`): `item.gcal_event_id` + `gcal_calendar_id` +
+  `gcal_synced_at` + `sync_state` + `sync_error` + 2 indekser. Idempotent.
+- **Sync-laget** (`cdc6ff2`): `modules/calendar/gcal_sync.py` — rene
+  hjelpere (`pick_dt`, `title_for`, `event_payload`, `calendar_name_for_track`),
+  `ensure_calendar` (auto-oppretter «Mayo OS» + «Mayo OS · Jobb»), `sync_item`
+  (idempotent insert/patch/delete; respekterer 60s undo; kalender-flytt =
+  delete+insert), `reconcile_once` (3 køer). `schedule_sync` fire-and-forget-
+  hook i POST/PATCH/DELETE /items (eksceptions svelges — API-svar blokkeres
+  aldri). `ItemCreate` fikk `scheduled_at`.
+- **Løkke-vern + 21 tester** (`d7a75a1`): leseren (`modules/calendar/sync.py`)
+  filtrerer events med `extendedProperties.private.mayo_item_id`. Tester
+  dekker I1-negativ (privat aldri til jobb-kalender, og motsatt), idempotent
+  ✓-prefiks, sensitiv-modus (`full`/`masked`/`skip`), 60s-undo-prinsipp,
+  scheduled_at-foran-due_at.
+- **Cron `*/3 min`** (`mayo-gcal-sync.sh`): staget, no-op til `CALENDAR_SYNC=1`.
+
+**🔴-til-sky dispensasjon (bevisst, Mayo 2026-06-14):** IVF + private manuelle
+oppgaver synkes med FULL tittel til Google. Konfigurerbart via
+`CALENDAR_SENSITIVE_MODE=full|masked|skip` (default `full`). Dette er ENESTE
+sted appens 🔴-prinsipp bevisst fravikes — `masked` = «Privat», `skip` = ingen
+synk. Eksisterende Google-token har allerede `calendar.events` write-scope —
+ingen re-consent nødvendig (motbevises kun hvis token ble opprettet før
+scope-utvidelse).
+
+**Status:** bygd, testet (21/21 grønne), ikke aktivert. `CALENDAR_SYNC=0`
+(default). Trinn 6 (flip flagg) gjenstår — krever ett siste signal fra Mayo
+(se §9.1 i spec: jobb-kalender ja/nei).
+
+---
+
+## 🆕 Tidligere (2026-06-14) — Livsplanlegger frontend live på mayooran.com
+
+Frontend (`mayo-os`, branch `feat/whoop-redesign`, auto-deploy via `deploy-frontend.yml`):
+- **Fase 1-flater** (PR #15, `b03f79c`): I dag · Triage (2-modus + drag + WIP-3) · Fang · Item/Monday · L0 Kart. Datalag `livsplan/store.js` (ekstern store + localStorage-outbox, ærlig lagring I3).
+- **Zoombar oversikt L0→L5** (PR #16, `64a2977`): wheel/pinch/skinne/snap zoom-motor + klient-fallback.
+- **Desktop master/detail** (PR #17): venstre skinne + kommando-kart (3-kol kort, sparkline, status-farge, drill) + detalj-panel. Responsiv via `useIsDesktop` (≥1024px).
+- **Eget funnel-nav + Revidere** (PR #18, `c98a04f`): `/livsplan` er full-bleed, app-skallets globale nav skjult; funnel (I dag/Triage/Oversikt/Revidere) + Fang.
+- **Fullført-arkiv + område-CRUD** (`3bf9638`, VPS-Claude): rename/farge/sone/slett + fullført-arkiv (oppgaver beholdes ved sletting).
+- **CLAUDE.md DEFINITION OF DONE** (frontend `d4c84ad`): varig regel — en oppgave er ikke ferdig før commit + push + STATE.md + PR.
+
+Backend (`mayo-ai-os`, `claude/confident-noether-lpacih`):
+- **`GET /overview`** (`552127b`): L0/L1/L2-aggregat (`item_logic.build_overview`), 5/5 tester. **IKKE deployet enda** (token-403 på workflow_dispatch) → kjør `cd ~/mayo-ai-os && ./deploy.sh` for å aktivere; til da bruker frontend klient-fallback.
+
+**Utestående:** område-CRUD trenger backend-endepunkter (`life_area` er fast seed i dag — frontend lagrer lokalt i localStorage, persisterer ikke på tvers av enheter). Recovery-ring (Whoop), tweaks-panel, Fraunces-titler per mobil-flate = polish.
+
+**⚠️ Forbehold:** alle frontend-deploys i natt er bygd grønt men **ikke device-verifisert** (web-Claude har ingen browser). Sjekk mobil + desktop. Rask tilbakerulling: revert merge-commit + redeploy.
 
 ---
 
@@ -19,6 +72,7 @@ Disse låser opp ferdigbygde features — alt annet kjører.
 6. **IVF-spor** (sensitivt): når du vil, gi input på *tonen* → da bygger jeg fase-bevisste påminnelser. Ikke gjettet autonomt.
 8. **🔄 Re-autoriser Whoop (1 gang):** aapne **https://db.mayooran.com/whoop-auth** i nettleser → logg inn Whoop → godkjenn. Token-kjeden ble revokert av en reuse-race (naa fikset med laas, 9f6ad11). Etter dette virker Whoop-data + trend-vakt igjen.
 7. **🧹 Slett 5 junk-test-møter i `meeting`-tabellen** — laget under diagnostikk 06-10 (`b85703de…`, `31c3c7ef…`, `3b8eed98…`, `9a37b689…`, `d7b34391…`). DELETE-SQL klar i handover (`~/mayo-whisper/HANDOVER-obsbygg.md` §5.2). Sletting av rader er regel-messig brukerens å kjøre selv.
+9. **🔗 Aktiver Tasks↔Apple Reminders sync** (ny, 2cc8e0c — feature-flagget AV): (a) kjør `migrations/005_task_reminder_sync.sql`, (b) lag Apple-liste **«Mayo OS»** på iPhone (eller sett `TASK_SYNC_LIST` i .env), (c) sett `TASK_REMINDER_SYNC=1` i .env + `systemctl restart db-api`. Da speiles oppgaver begge veier (nyeste vinner, speilet sletting). (d) Valgfritt: utvid iOS-Shortcuten til å prosessere `delete_queue` fra `/reminders/bulk-sync` så sletting også når Apple. Detaljer i HANDOVER_RESULT.
 
 ---
 
@@ -51,16 +105,24 @@ Disse låser opp ferdigbygde features — alt annet kjører.
 | **Obs BYGG `/meeting/import` graceful** | 🟢 | 2026-06-10 | `meeting_import` pakker `claude_extract` i try/except (commit 5abace9). Hvis Claude feiler (401/quota/timeout) → møtet lagres `status=done` med transkript+base_tags+user_notes intakt, AI-felter tomme. Tidligere 500 verifisert borte. Aksepterer nå `user_notes` + `tags` fra Mac-opptaker. |
 | **`GET /meeting-tags`** | 🟢 | 2026-06-10 | Returnerer alle unike tagger på tvers av brukerens møter — for tag-autocomplete i Mac-opptakeren. Bindestrek (ikke `/meeting/tags`) for å unngå ruterkollisjon. Token-autentisert. |
 | **Obs BYGG web §1.1-1.7 (design v1.1)** | 🟢 | 2026-06-11 | mayo-os frontend + VPS. §1.1 degradert-tilstand (amber-chip/re-analyse), §1.2 speaker-diariserings-UI (fargede chips, inline rename), §1.3 synk-opt-in (☁/⌂ toggle+chip), §1.4 tag-kuratering (autocomplete {tag,count}), §1.5 oppgaver inline-rediger, §1.6 vedlegg+Dokumenter-fane, §1.7 frittstående notater-fane. Aktiverte tidligere «snart»-faner. Live-verifisert i browser + 2 adversarielle review-runder (0 suverenitetsbrudd). Commits FE 4debfa7/03f40b8, BE d1262c5/21e8d26/4eeeed0. |
-| **Journal psykolog-laget (§2)** | 🟢 | 2026-06-11 | `window.PSYCH` levende refleksjoner: per-entry refleksjon-pille (privat·lokal), PsychSummaryCard tidslinje-dividers, Innsikt-fane (emnetagger→per-uke-graf, delta-linjer, mood-prikker), touch()→«⟳ oppdaterer»→settle. PRIVAT-spor, kun lokal modell, bak OTP-gate, ALDRI blandet med jobb. Commit ce74dfc. ⚠️ Backend event-drevet regenerering gjenstår (seed-mock i `src/lib/psych.js` i dag). |
+| **Journal psykolog-laget (§2)** | 🟢 | 2026-06-11 | `window.PSYCH` levende refleksjoner: per-entry refleksjon-pille (privat·lokal), PsychSummaryCard tidslinje-dividers, Innsikt-fane (emnetagger→per-uke-graf, delta-linjer, mood-prikker), touch()→«⟳ oppdaterer»→settle. PRIVAT-spor, kun lokal modell, bak OTP-gate, ALDRI blandet med jobb. Commit ce74dfc. ⚠️ Summary-kort/Innsikt = fortsatt seed-mock i `src/lib/psych.js`. |
+| **Per-entry refleksjon-pille — backend-wiret (§2.1)** | 🟢 kode (krever VPS-deploy) | 2026-06-11 | **Rotårsak til «ingen pille» funnet:** `GET /journal` returnerte aldri `reflection`/`reflection_model`, så `isSafeReflection(e)` var alltid false. `psykolog_short` (lokal Ollama, enrich Phase 4b) ligger i vault-frontmatter, ikke Postgres. Fix `8c9bfe1`: `_attach_reflections` fester dagens refleksjon på dagens NYESTE entry som `reflection` + `reflection_model='local'` (sannferdig → 🔒 trygt også for 🔴 ivf/økonomi). Ingen DB-migrasjon. 5 enhetstester (AST-uttrekk, kjører uten fastapi/DB) grønne + `py_compile` OK under 3.12. **Deploy backend (master) + `systemctl restart db-api` → pillen vises på ekte entries.** |
 | **DB: sync_enabled + meeting_attachment + work_note** | 🟢 | 2026-06-11 | Migrasjon 004 (idempotent). Vedlegg i `/home/mayo/MayoVault/obs-bygg/attachments/` m/ path-traversal-vakt. Alle queries user_id-filtrert (review fant+fikset manglende filter i action-item DELETE → 4eeeed0). |
 
 ## 🟡 Pågår / delvis
+- **🚀 Livsplanlegger Fase 1 — motoren (BE `6895123`)** — kanonisk `item`-modell (migrasjon 006: item-tre + life_area 6-seedet + context_bucket), `item_logic.py` (board, today+soft-cap-3, L0-formel, SUVERENITETS-vegg: filter_track/assert_no_private_leak I1 + read-only synket jobb-item), `item_module.py`-router (POST/GET/PATCH/DELETE /items + /board //today /contexts /subtasks). 11 tester (40/40 totalt). **Additivt — rører IKKE journal-vokter/reminder-sync.** Beslutninger 2026-06-13: crm_task speiles, jobb read-only+lokal planlegging, kontekst seedet+egne, L0-formler v1. Design-handover lest mot mocks (aligner). ✅ **#1 crm_task→item speil** (`114085c`, `item_mirror.py` idempotent backfill + CLI). ✅ **Verifisert mot ekte Postgres 16** (`f00b763`): 006 kjører rent uten 005 (selv-tilstrekkelig crm_task.tags-ALTER), 14/14 SQL-assertions (seed/capture/board-WHERE/subtask-ekskl/tombstone/speil-mapping/idempotens) + 44/44 logikk-tester. **DEPLOYET & VERIFISERT 2026-06-13 18:59 UTC** (auto-deploy, run 27471142405, runner `mayo-vps`): migrasjon 006 anvendt, crm_task→item backfill `{created:67, total:67}`, `/items` + `/items/board` svarer med ekte data, helse `{ok:true}`, fersk PID. Self-hosted runner er nå live på VPS (systemd `actions.runner.*mayo-vps`) → ALLE fremtidige backend-pushes deployer seg selv. Ingen flere terminallinjer for Mayo. **Gjenstår Fase 1:** #2 journal-vokter-repoint (BEVISST UTSATT til Fase 3-flipp — speilet dekker vokter-tasks), #3 frontend-port (triage/inbox/«3 i dag» fra mocks på feat-grenen — der det blir synlig). 44/44 tester. Specs: `docs/superpowers/specs/2026-06-13-livsplanlegger*.md`.
 - Web push + voice-router venter på Mayos engangs-oppsett (TODO #1, #2).
 - Abonnement-detektor dvalende til bank kobles (TODO #3).
 - Junk test-møter (5 stk) venter på Mayo's DELETE (TODO #7).
+- **Refleksjon-pille backend-fix (8c9bfe1)** — ✅ **LIVE & verifisert 06-12:** `/journal` returnerer `reflection` på **18/31 entries** etter ren restart. Rotårsak var IKKE kode — gammel db-api-prosess (41 min) hadde aldri lastet ny kode; tidligere `systemctl restart` syklet den ikke. Fix: tøm `__pycache__` + restart → fersk prosess lastet koden. Pille vises i app etter hard-refresh.
+- **Tasks↔Apple Reminders sync-layer (2cc8e0c)** — ✅ kode på master (PR #3 merget), **feature-flagget AV**. Venter aktivering på VPS (TODO #9: migrasjon 005 + `TASK_REMINDER_SYNC=1` + «Mayo OS»-liste). Pending-decision RESOLVED → B.
+- ✅ **Journal entry-tekst = brukerens egne ord (ikke ai_summary)** + refleksjon-pille kollapset default (FE `1ffd5bb`, feat-grenen) — LIVE & verifisert i app 06-12.
+- ✅ **Etappe 2 ferdig + infra (FE+BE)** — Kalender tapp-dag → bottom-sheet for ny/bakoverdatert entry (POST /journal m/ entry_date) → trigger ukes-regen for den uken (FE `fe57a75`). Innsikt: strukturert dagsrefleksjons-arkiv lazy-lasted fra `/notes/psykolog/history`, gruppert per ISO-uke, kollapserbart (FE `2bd3e1e`). Backend deploy.sh (BE `05ab4ca`) — én-kommando deploy med pycache-tømming + PID-verifisering. Whoop `?debug=1` (BE `1d27754`) viser nøyaktig redirect_uri/scopes til Whoop-dashboardet. Tasks↔Reminders aktiverings-script (BE `3a05484`) + iOS Shortcut delete_queue-doc. GitHub Action deploy-backend.yml (BE `55c1fd3`) — self-hosted runner gjør at Claude kan deploye via API. **Venter deploy: BE `./deploy.sh`, FE `./deploy.sh skip-pull` på VPS.**
+- ✅ **Ekte lokal ukes-synteser — LIVE & verifisert 06-12** (BE-gren `claude/confident-noether-lpacih`, FE-gren `feat/whoop-redesign`). Erstatter «Uke 24»-mock med ekte analyse av entries+dagsrefleksjoner+kalender(+HRV/Whoop+Strava når Whoop er oppe). Lever/låser; regen ved bakoverdatert entry. `GET /journal/psykolog/weeks` + `psych.js`-fetch (FE `c2cc22f`). POST /journal tar `entry_date`. reflect.py Sunday-cron nå LOKAL (var Claude=sky-brudd). **Modell: `gemma3:4b-it-q4_K_M` på VPS** (privat-spor, 🔴-trygg) — 3B var for svak (metaprat), llama3.1:8b OOM'er (4.8>4.3 GiB). **Suverenitetssperre:** ALDRI jobb-Mac (Tailscale qwen2.5:14b = Obs BYGG). Retry m/ backoff på transiente Ollama-blips. Alle 8 uker backfill'et OK. Commits: `8c9bfe1`/`2cc8e0c` … `b289dcc`. **Gjenstår (Etappe 2, IKKE bygd): kalender tapp-dag→ny entry-UI, Innsikt strukturert dagsrefleksjons-visning.**
 
 ## 🔴 Åpne problemer
 - **Whoop 502 — ROTAARSAK FUNNET + fikset (06-11), krever EN re-auth (TODO #8).** Refresh-token-reuse-race: samtidige /whoop-kall refresha access-token uten laas → Whoop revokerte hele token-kjeden → vedvarende 400 invalid_request. Fikset med dobbelsjekket asyncio.Lock (9f6ad11). Token-kjeden er fortsatt revokert → Mayo maa re-autorisere EN gang, deretter holder laasen den i live.
+- **🔴 Whoop re-auth BLOKKERT (06-12):** `/whoop-auth` → Whoop avviser med `error=request_forbidden` («The request is not allowed») FØR innlogging. Ikke token-racet — det er en OAuth-config-avvisning på Whoop sin side. Mest sannsynlig: redirect-URI ikke registrert eksakt (`https://db.mayooran.com/whoop-auth`) i Whoop Developer Dashboard, eller appen er disabled/under review (kan ha blitt flagget av reuse-racet). Sjekk OGSÅ scopes (`read:recovery read:sleep read:cycles read:profile offline`) + at `WHOOP_CLIENT_ID` matcher appen. Fiks ligger i Whoop-dashboardet, ikke i koden. (Tilbud: `?debug=1`-diagnostikk-endepunkt kan bygges.)
 - ✅ **Frontend DEPLOYET (06-11 16:31)** — mayooran.com serverer naa `28cbc97` (Obs BYGG §1.1-1.7 + Journal §2 LIVE inkl. design-fidelity-fikser). Deploy-repo `~/mayo-os-deploy` byttet main → feat/whoop-redesign (fetch-refspec var kun main → maatte hente grenen eksplisitt). PR #14 staar fortsatt aapen for evt. senere merge til main.
 - **`finance.transactions` tom** — Enable Banking ikke koblet → finans-features dvalende (TODO #3).
 - **Mac-Whisper-tunnel nede** (127.0.0.1:11436) → mayooran.com-pipelinen bruker treg VPS-Whisper (TODO #5). Coop-opptakeren har egen tunnel via Tailscale og påvirkes ikke.
@@ -72,9 +134,12 @@ Disse låser opp ferdigbygde features — alt annet kjører.
 - ✅ **Coop-opptaker speaker-chips i Obs BYGG-frontend (06-11):** ferdig — §1.2 speaker-diariserings-UI med fargede chips + inline rename + on-demand Ollama. Live-diariseringsstatus persisteres fortsatt ikke ved page-refresh midt i opptak (mindre).
 - IVF-tidslinje (lokal, krever Mayos tone-input) · inkasso-vakt + skatte-/likviditetsmotor (krever bank) · per-person møteforberedelse (krever Inc 5 RAG).
 - Enable Banking-kobling · lokal modell-oppgradering · Obsidian-class editor.
+- **Journal-spec gjennomgått (06-11):** §1–6 i praksis fullt bygd & live (audit på `feat/whoop-redesign`, se HANDOVER_RESULT). Gjenstår KUN 3 §7.3-punkter (Mayo-gated, IKKE bygd): mood-kurve over uker · «verktøy vi har øvd på»-liste · emnetagg→relaterte-entries drill-down. Kart-fanen = Fase-2-mockup (venter `{lat,lon}`). Frontend leser per-entry `entry.reflection` fra backend → refleksjon-fix `8c9bfe1` tenner pillen ved deploy.
 
 ## 🕐 Siste commits (nyeste øverst)
 **Backend (`mayo-ai-os`):**
+- `2cc8e0c` — feat(tasks): bidireksjonell crm_task↔Apple Reminders sync-layer (migrasjon 005 + task_sync.py + /tasks-hooks + bulk-sync revers + reconcile). Feature-flag `TASK_REMINDER_SYNC=0`. Branch `claude/confident-noether-lpacih`, IKKE aktivert enda (06-11)
+- `8c9bfe1` — fix(journal): surface per-dag psykolog-refleksjon i GET /journal (reflection + reflection_model='local') → refleksjon-pillen vises. Branch `claude/confident-noether-lpacih`, IKKE deployet enda (06-11)
 - `9f6ad11` — fix(whoop): async-laas rundt token-refresh (reuse-race revokerte kjeden) + manglende asyncio-import (06-11)
 - `c909796` — fix(ops): demp falsk evening-alarm + privacy-import (news/psykolog) + trend-vakt data-klar-gate hver 30 min (06-11)
 - `4eeeed0` — fix(security): filter meeting_action_item DELETE by user_id (06-11)
