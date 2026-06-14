@@ -36,8 +36,19 @@ synk. Eksisterende Google-token har allerede `calendar.events` write-scope —
 ingen re-consent nødvendig (motbevises kun hvis token ble opprettet før
 scope-utvidelse).
 
-**Status:** bygd, testet (24/24 grønne), ikke aktivert. `CALENDAR_SYNC=0`
-(default). Trinn 6 (flip flagg) gjenstår.
+**Status (2026-06-14 19:44 UTC):** **AKTIVERT** — `CALENDAR_SYNC=1`. Første
+manuelle sweep gikk grønt: 1 privat item insertet → «Mayo OS»-kalenderen
+(item `e3fa6f47-92f3-47bb-8035-17a839e75308`, «Re-autoriser Whoop OAuth…»).
+Re-kjørt sweep er idempotent (0 operasjoner). Cron `*/3 min` håndterer
+sweep videre.
+
+**Pre-opprettet kalender** — tokenet har `calendar.events` + `calendar.readonly`,
+men IKKE `calendar` (full), så `events.insert` virker men ikke
+`calendars.insert`. Mayo opprettet «Mayo OS» manuelt i Google UI (2026-06-14)
+og kalender-ID-en er pinnet i `.env` som `CALENDAR_SYNC_ID_PRIVAT=<satt>`.
+`ensure_calendar` sjekker env-override FØR den prøver å opprette → ingen
+403. Re-consent kan gjøres senere hvis det blir behov for å auto-opprette
+nye kalendere.
 
 **Spec §9.1 svart (Mayo 2026-06-14):** Obs BYGG (jobb) skal IKKE synkes —
 de eier sin egen kalender; unngår dobbel-booking. Default
