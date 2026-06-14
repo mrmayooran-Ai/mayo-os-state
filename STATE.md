@@ -36,9 +36,13 @@ synk. Eksisterende Google-token har allerede `calendar.events` write-scope —
 ingen re-consent nødvendig (motbevises kun hvis token ble opprettet før
 scope-utvidelse).
 
-**Status:** bygd, testet (21/21 grønne), ikke aktivert. `CALENDAR_SYNC=0`
-(default). Trinn 6 (flip flagg) gjenstår — krever ett siste signal fra Mayo
-(se §9.1 i spec: jobb-kalender ja/nei).
+**Status:** bygd, testet (24/24 grønne), ikke aktivert. `CALENDAR_SYNC=0`
+(default). Trinn 6 (flip flagg) gjenstår.
+
+**Spec §9.1 svart (Mayo 2026-06-14):** Obs BYGG (jobb) skal IKKE synkes —
+de eier sin egen kalender; unngår dobbel-booking. Default
+`CALENDAR_SYNC_SKIP_JOBB=1`. Overridbart med `=0` hvis ønsket senere.
+Sweep fjerner allerede synkede jobb-events fra Google når flagget er på.
 
 ---
 
