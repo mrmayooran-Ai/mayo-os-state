@@ -4,11 +4,115 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-14 · **Av:** Claude (gcal-synk Fase 1: bygd, ikke aktivert) · **Versjon:** v0.10 app→Google synklag staget bak flagg
+**Sist oppdatert:** 2026-06-14 sent kveld · **Av:** Claude (full audit + UX-rapport) · **Versjon:** v0.11 stabilitet + v1.2 ferdig + UX-handover
 
 ---
 
-## 🆕 Siste (2026-06-14, kveld) — App→Google Calendar synk (Fase 1) staget
+## 🆕 Siste (2026-06-14 sent kveld) — Nattaudit: stabilitet, v1.2, UX-rapport
+
+Mens Mayo sov, gikk Claude Code gjennom hele systemet for optimalisering,
+feilretting og UX-forbedringer. Tre konkrete handlinger venter på Mayo
+i morgen, alt annet er ferdig + committet + pushet.
+
+### 🛡️ Server-stabilitet — krever sudo (commit `c994a6e`)
+
+**ROTÅRSAK funnet for «server kveles ofte»:**
+
+1. **Crash-loop Jun 11 09:12-09:15** — stale uvicorn-prosess holdt port 8001 →
+   `Errno 98 Address already in use` hvert 13. sekund i 5 minutter. Hver
+   gang lastet Whisper-modellen før den krasjet på bind → minne-press +
+   risiko for Whoop-token-revokering (CLAUDE.md regel #4).
+2. **Null swap** — 8 GB RAM, 0 swap. Linux OOM-killer fyrer brutalt når
+   Whisper+Ollama+Postgres+db-api+litellm tilsammen topper. Forklarer
+   Mayos «RAM-bruken er lav ofte i løpet av dagen».
+
+**Fix klargjort, krever Mayos sudo-passord:**
+
+```bash
+sudo bash /home/mayo/mayo-ai-os/infra/scripts/fix-server-stability.sh
+```
+
+Scriptet gjør (idempotent):
+- Aktiverer 4 GB swap-fil (`/swapfile`, lagt til `/etc/fstab`).
+- Installerer ny `db-api.service` (kopi i `infra/db-api.service.proposed`):
+  - `ExecStartPre=fuser -k 8001/tcp` (dreper stale før bind).
+  - `StartLimitBurst=5 / StartLimitIntervalSec=300` (stopper crash-loop-hammering).
+  - `MemoryMax=4G / MemoryHigh=3G` (cgroup v2 — hard cap mot runaway).
+  - `TimeoutStopSec=30 + KillMode=mixed` (Whisper-jobs henger ikke evig).
+- `systemctl daemon-reload + restart` + verifikasjons-health-sjekk.
+
+### 🎨 Livsplanlegger v1.2 — ferdig (commits `380ddae` → `ba44115`)
+
+Alle 5 v1.2-deler portet og live på mayooran.com:
+
+- **Items:** «Forfaller»/«Gjør når»-labels, ↩ Gjenåpne for done-items,
+  «→ Til Prio», **FristChooser** (hurtigchips + mini-kalender + klokkeslett).
+- **Prio:** Triage→Prio rename (route-id beholdt), bane-navn redigerbare
+  (✎/dobbeltklikk), mobil-drag-fix (250ms long-press + scroll-lås +
+  tekst-markering-blokk).
+- **Oversikt (desktop):** Smart-fliser (I dag/Forfalt/Uke/Innboks),
+  momentum-fremdriftsring i AreaCard, «I dag» som default-landing.
+- **Oversikt (mobil):** Ny MobileOverview med Kort/Puls-bryter.
+- **Kalender:** Egen flate (Måned/Tidslinje/Gantt/År), flyttet til
+  hovedmeny ved siden av «I dag» (Mayos valg 2026-06-14).
+- **Fang:** Share/Siri/Widget-strip fjernet.
+- **Bonus:** Styrke-modulen fikk synlig autolagre-status + sticky
+  Fullfør-knapp + helt fikset bug der draften aldri ble lagret.
+
+### 📋 UX-rapport til Claude Design — `HANDOVER-UX-FOR-DESIGN.md`
+
+10 prioriterte UX-funn med konkrete forslag, basert på faktiske
+bug-rapporter + kode-audit. Topp 3 (P1 ⭐⭐⭐):
+
+1. **Data-sikkerhet er ikke synlig nok** — strength-bug + meeting-sync-bug
+   begge skyldes at lagring/sync-state er usynlig til det feiler. Foreslår
+   sentral «Statusbar / Safety-indicator»-chip alltid synlig.
+2. **«Hvor er datoen?»** — items uten dato har bare bane-flytting som vei.
+   FristChooser implementert i v1.2; trenger fortsatt «+ dato»-pill direkte
+   på ItemLine i lister.
+3. **Bunn-nav-tetthet** — 5 items + Fang-knapp = 6 ting på 375px. Foreslår
+   adaptiv tetthet (skjul labels under 360px).
+
+Resterende (P2/P3) ligger i handover-fila. Gi den til Claude Design.
+
+### ✅ Koblings-audit (alt i orden)
+
+- **systemd:** db-api, telegram-bot, cloudflared, nginx, docker, ollama — alle running.
+- **Postgres:** accepting connections, 54 MB DB, største tabell `health_sample` 31 MB.
+- **ChromaDB / Ollama:** heartbeat OK, Ollama har gemma3:4b lastet.
+- **HTTPS:** mayooran.com 200, db.mayooran.com health OK.
+- **Tokens:** Whoop refresh-token satt (87 bytes), Strava (40 bytes),
+  Google Calendar (gjenbrukbar — calendar.events scope).
+- **Backups:** daglig pg-dump + vault-tar siste 14 dager (siste 03:30 i dag).
+- **Cron:** 21 aktive linjer.
+- **Manglende indekser:** ingen kritiske (`calendar_event` har gode indekser,
+  høyt seq_scan-tall er mest fra full-table-resyncs).
+
+### 🧹 Dead code / vedlikehold
+
+- 6 `.bak`-filer ikke i git (server.py.bak, transcribe.py.bak, etc.). Mayo
+  kan trygt slette: `rm db_api/server.py.bak* modules/whisper/transcribe.py.bak modules/news/digest.py.bak infra/.env.bak infra/docker-compose.yml.bak.20260515-1134`
+- `server.py` er 5284 linjer — moden for å splittes i moduler (item_module/
+  meeting_module finnes; kandidater: jarvis_module, biometrics_module). Risikabelt
+  å gjøre uattendert, så ikke gjort.
+- Frontend bundle: 1 MB unminified (271 KB gz). Vite advarer om >500 KB.
+  Code-splitting kan implementeres for bedre TTI, men er ikke kritisk nå.
+
+### 🔚 Mayos huskeliste når han våkner
+
+1. **Kjør:** `sudo bash /home/mayo/mayo-ai-os/infra/scripts/fix-server-stability.sh`
+   (engangs — fikser swap + crash-loop-vern).
+2. **Verifiser:** `free -h` viser swap ≠ 0; `systemctl show db-api -p MemoryMax`
+   viser 4 GB.
+3. **Trigg synk** i Mac-appen for møtene fra 11. og 12. juni (de finnes
+   lokalt; bryteren var av, nå er den på).
+4. **Hvis tid:** gå gjennom `HANDOVER-UX-FOR-DESIGN.md` og send til Claude
+   Design for neste runde polish.
+5. **Hvis vil rydde:** slett .bak-filer som listet over.
+
+---
+
+## 🆕 Tidligere (2026-06-14, kveld) — App→Google Calendar synk (Fase 1) staget
 
 Backend (`mayo-ai-os`, `claude/confident-noether-lpacih`, fire commits):
 
