@@ -4,7 +4,372 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-13 · **Av:** Claude (Livsplanlegger Fase 1 — item-motor + suverenitets-vegg) · **Versjon:** v0.8 Livsplanlegger Fase 1
+**Sist oppdatert:** 2026-06-15 21:00 · **Av:** Claude (planlegger-session) · **Versjon:** v0.16 PT coach enrichment + notification center
+
+## 🎯 Nyeste (2026-06-15 21:00) — PT coach enrichment + smart recency + notification center
+
+### PT-forbedringer (3 commits: `9be23b5`, `8c8262a`, `e88843b`)
+
+**Parser (`9be23b5`):**
+- ~20 nye norske gym-keywords (bryst, skulder, overkropp, nedtrekk, dips, arnold, sidehev, ben, glute, etc.)
+- Strava Type-fallback: Run→Aerob, Ride→Aerob, etc. (brukes kun når tittel-keywords gir 0 treff)
+- 33 tester (opp fra 17), alle grønne
+
+**Recency-merge (`8c8262a`):**
+- `_merge_recency()` i daily_card.py: tar MIN per muskelgruppe fra BÅDE strength_session-logg OG Strava-parser
+- Tidligere overskrev Strava-override hele session-dataen — nå supplerer den
+- Recovery-kontekst beriket: sleep_efficiency, deep_sleep_min, rem_sleep_min, strain_yesterday fra Whoop
+- Motor-tekst annoterer datakildene ("Recency-kilder: styrkelogg + Strava")
+
+**Coach-enrichment (`e88843b`):**
+- `anonymize()` eksponerer ALLE planlagte øvelsers sist-tall (ikke bare hovedløftet)
+- PT_SYSTEM-prompten forsterket: strain, "push når dataen tåler det, hold igjen når den ikke gjør det"
+- Daglig PT-rapport → notification bell (`create_notification(category="health")`)
+- Ukentlig PT-rapport → notification bell (`weekly_report.py:_notify()`)
+
+### In-app notification center (bell icon) (`49306a7` + `f8bf84f`)
+
+**Backend:**
+- Migration `008_notifications.sql`: `notification`-tabell (category, title, body, url, icon, read_at)
+- `notification_module.py`: GET /notifications, PATCH /{id}/read, POST /read-all, GET /unread-count
+- `create_notification()` helper for intern bruk (trading, health, etc.)
+- `send_signals.py`: trading-signaler → DB-notifikasjon istedenfor Telegram (gated bak `TRADING_TELEGRAM_SEND=0`)
+
+**Frontend:**
+- `NotificationBell.jsx`: bell icon + dropdown panel i desktop Topnav
+- Polls unread-count hvert 60s, merk lest/merk alle lest, navigerer til url
+- Sovereign Glass-estetikk, magenta unread-badge med glow
+
+**Deploy-rekkefølge (kreves på VPS):**
+1. `psql mayo_sov -f ~/mayo-ai-os/migrations/008_notifications.sql`
+2. `cd ~/mayo-ai-os && ./deploy.sh` (backend — alle 4 commits)
+3. `cd ~/mayo-os-deploy && git fetch origin feat/whoop-redesign && git reset --hard FETCH_HEAD && ./deploy.sh skip-pull` (frontend)
+
+---
+
+## 🎯 (2026-06-15 17:00) — Livsplan v1.2-handoff importert
+
+Mayo lastet opp `mayooran.com Design v1.1 (8).zip` (misvisende navn — inneholder
+hele v1.2-bundle) til vaulten. Pakket ut til `mayo-os-deploy/_design/livsplan-v12-handoff/`.
+
+**Innhold:**
+- 14 ferdig porterte JSX-filer i `src/livsplan_v12/`
+- 2 standalone HTML-fasit (mobil + desktop)
+- 6 handover/spec-dokumenter + CLAUDE.md + README
+- `src/app/` primitiver: icons, primitives, tokens
+
+**Status:**
+- 2 commits på `feat/whoop-redesign` (frontend-repo, ikke pushet):
+  - `1a697b1` import av handoff
+  - `5e64cfb` KICKSTART-merge-til-repo.md
+- Backend MCP `list_inbox`-UX fra tidligere session: commits `fdb009a`, `d6356ae`, `92d39b8` (på `claude/confident-noether-lpacih`, pushet)
+
+**Surprise-funn:** `/home/mayo/mayo-os-deploy/` er IKKE bare deploy-katalog —
+det er frontend-repoet `mayo-os` (origin: `github.com/mrmayooran-Ai/mayo-os.git`).
+Det betyr v1.2-merge KAN kjøres fra VPS, men neste session må starte friskt
+(forrige nådde 90% session limit før merge kunne begynne).
+
+**Neste:** ny session leser `_design/livsplan-v12-handoff/KICKSTART-merge-til-repo.md`
+→ oppretter `src/mobile/livsplan_v12/` parallelt med v1.1 → porterer + Vite-tilpasser.
+
+
+
+## 🎯 Nyeste (2026-06-15 12:13) — MCP list_inbox UX-iterasjon 2
+
+Mayo: «fortsatt kommer tall. jeg må ha task navn og frist dato og viktighet».
+- `_tool_list_inbox` rebuilt: tittel + frist (relativ tid) + prio (lav/medium/høy) + område
+- Frister: «i dag», «i morgen», «om N dager», absolutt dato i parentes
+- ID-mapping flyttet til en TOOL_INTERNAL-seksjon (HTML-kommentar + instruks)
+- Tool-description forsterket med eksplisitt «vis ALDRI TOOL_INTERNAL»
+- Bekreftet av Mayo: Claude.ai viser nå 20 oppgaver helt rent, ingen tall/IDer
+- Commits: `fdb009a` (logikk) + `d6356ae` (description-instruks)
+- Deployet via `./deploy.sh` (PID 184352)
+
+
+
+---
+
+## 🎯 Final (2026-06-15 09:42 → 10:05) — Alle 8 gjenværende moduler trukket ut
+
+Etter første 6 moduler (-47%) kjørte Mayo «kjør alle i rekkefølge uten stopp».
+8 nye moduler portet med samme mønster — register router → flytt endepunkter
+→ verifiser mot prod → commit per modul. Total runtime: ~25 min.
+
+| # | Modul | Endepunkter | Commit | server.py-linjer |
+|---|-------|-------------|--------|------------------|
+| 7 | calendar_module.py | 4 | 9d32b05 | 2480 |
+| 8 | email_module.py | 5 | 9d32b05 | 2480 |
+| 9 | finance_local_module.py | 5 | 8f206fe | 2300 |
+| 10 | notes_module.py | 6 | 8f206fe | 2300 |
+| 11 | goals_module.py | 6 | af75f3a | 1980 |
+| 12 | habits_module.py | 5 | af75f3a | 1815 |
+| 13 | weight_module.py | 3 | af75f3a | 1690 |
+| 14 | chat_module.py | 3 | af75f3a | **1590** |
+
+**Sluttresultat etter ALLE 14 moduler:**
+- server.py: 5284 → **1590 linjer (-3694, -70%)**
+- 14 nye moduler: ~3300 linjer totalt
+- 99 endepunkter migrert
+
+Server.py inneholder nå BARE: auth-middleware, /health, /strava-ruter,
+audit-log, vault/tree, brief, search/cross-domain, voice/jarvis, og noen
+helt spesialiserte ting (calendar OAuth callback osv).
+
+### Special handling per modul
+
+- **finance_local_module**: navnesuffix -local for å unngå kollisjon med
+  `finance_advisor/backend/finance_module.py`.
+- **trading_module**: erstattet eldre Notion-fallback (.legacy-backup);
+  sys.modules-cache måtte poppes for å unngå wrong `advisor` import fra
+  finance_advisor.
+- **calendar_module**: GET /calendar-auth (OAuth callback) BEHOLDT i
+  server.py som spesialformål.
+- **chat_module**: Jarvis-ruting + ekspert-persona + Anonymizer er
+  alle preservert intakt.
+
+---
+
+## 🆕 Aller siste (2026-06-15 09:25–09:42) — Trukket ut 5 nye moduler
+
+Etter journal_module.py (-23%) gikk samme mønster på 5 moduler til,
+
+---
+
+## 🆕 Aller siste (2026-06-15 09:25–09:42) — Trukket ut 5 nye moduler
+
+Etter journal_module.py (-23%) gikk samme mønster på 5 moduler til,
+i prio-rekkefølge per Mayos valg. ALLE verifisert mot prod med ekte data.
+
+| Runde | Modul | Endepunkter | Commit | server.py-linjer etter |
+|-------|-------|-------------|--------|------------------------|
+| 1 | journal_module.py | 24 (8 sub-commits) | a4f7bd1 | 4050 |
+| 2 | strength_module.py | 10 | f225e01 | 3717 |
+| 3 | reminders_module.py | 8 | 64115e5 | 3370 |
+| 4 | tasks_module.py | 6 | d5fe108 | 3023 |
+| 5 | nutrition_module.py | 7 | aa44003 | 2870 |
+| 6 | trading_module.py | 7 | 6d9e36b | **2780** |
+
+**Totalresultat:** server.py 5284 → **2780 linjer (-2504, -47%)**
+
+Nye moduler:
+- journal_module.py: 1338 linjer (24 ruter)
+- strength_module.py: 372 linjer (10 ruter)
+- reminders_module.py: 341 linjer (8 ruter)
+- tasks_module.py: 301 linjer (6 ruter)
+- nutrition_module.py: 206 linjer (7 ruter)
+- trading_module.py: 135 linjer (7 ruter; gammel Notion-fallback i .legacy-backup)
+
+**Total kode:** 5284 → 5273 linjer (samlet redusert, ikke bare flyttet)
+
+Bug oppdaget + fikset under prod-test: `modules/trading` og
+`finance_advisor/backend` har SAMME filnavn (advisor.py, run.py).
+Python's sys.modules cacher første loading → wrong module-bytting.
+Fix: trading_module._trading_path() pop'er sys.modules-keys før
+import → tvinger fersk lookup fra modules/trading.
+
+---
+
+---
+
+## 🆕 Aller siste (2026-06-15 08:45 → 09:18) — journal_module.py 100% ferdig
+
+8 commits over 30 min. ALLE 24 journal-endepunkter migrert ut av
+server.py-monolitten. Hver runde verifisert mot prod med curl.
+
+| Runde | Commit | Endepunkter | server.py-linjer etter |
+|-------|--------|-------------|------------------------|
+| 1 | `1f8b0bb` | 4 lese (list/by-tag/by-id/wiki-links) | 5224 |
+| 2 | `17e83b2` | 5 skriv (POST/PATCH/DELETE + quick + geo) | 5126 |
+| 3 | `b8cd6a5` | 3 lese (insights/related/backlinks) | 4901 |
+| 4 | `a7def61` | 2 voice (text + audio) | 4824 |
+| 5 | `21fdf87` | 5 (search/ask/sync-vault/psykolog x2) | 4634 |
+| 6 | `4021eb7` | 1 (graph) | 4528 |
+| 7 | `b8c97ec` | 2 media + slett 9 dead helpers | 4264 |
+| 8 | `a4f7bd1` | 1 (voice-journal m/ chunking + Claude) | 4050 |
+
+**Resultat:**
+- server.py: 5284 → **4050 linjer (-1234, -23%)**
+- journal_module.py: 0 → **1338 linjer** (ny)
+- Total: 5284 → 5388 (+104 — godt trade-off for løs kobling)
+
+Server.py kjenner ikke til ÉN /journal-rute lenger. Alle media-helpers,
+geo-enrichment, Pillow/HEIC, Whisper, Claude-strukturering, og psykolog-
+synteser bor nå i journal_module. 9 dead helpers + 6 konstanter slettet.
+
+Neste kandidater for splitting (per HANDOVER-UX-FOR-DESIGN.md §X):
+- `strength_module.py` (10 endepunkter, ~400 linjer)
+- `reminders_module.py` (8 endepunkter)
+- `tasks_module.py` (6 endepunkter)
+- `nutrition_module.py` (7 endepunkter)
+
+---
+
+---
+
+## 🆕 Siste (2026-06-14 sent kveld) — Nattaudit: stabilitet, v1.2, UX-rapport
+
+Mens Mayo sov, gikk Claude Code gjennom hele systemet for optimalisering,
+feilretting og UX-forbedringer. Tre konkrete handlinger venter på Mayo
+i morgen, alt annet er ferdig + committet + pushet.
+
+### 🛡️ Server-stabilitet — ✅ ANVENDT 2026-06-15 08:33 (commit `c994a6e`)
+
+Mayo kjørte `sudo bash infra/scripts/fix-server-stability.sh` 08:33:43.
+Resultat (alt grønt):
+- Swap: **4.0 Gi total**, 179 Mi allerede i bruk av kernel.
+- MemoryHigh: 3 GB, MemoryMax: 4 GB (cgroup-cap).
+- db-api: PID 131884 (én prosess), health OK.
+- Gammel unit sikkerhetskopiert til `/etc/systemd/system/db-api.service.bak.20260615`.
+- `/etc/fstab` har swap-linjen (overlever reboot).
+
+**Rotårsaken som ble fanget:**
+
+1. **Crash-loop Jun 11 09:12-09:15** — stale uvicorn-prosess holdt port 8001 →
+   `Errno 98 Address already in use` hvert 13. sekund i 5 minutter. Hver
+   gang lastet Whisper-modellen før den krasjet på bind → minne-press +
+   risiko for Whoop-token-revokering (CLAUDE.md regel #4).
+2. **Null swap** — 8 GB RAM, 0 swap. Linux OOM-killer fyrer brutalt når
+   Whisper+Ollama+Postgres+db-api+litellm tilsammen topper. Forklarer
+   Mayos «RAM-bruken er lav ofte i løpet av dagen».
+
+Begge fanget av samme script (idempotent), nå anvendt i prod.
+
+### 🎨 Livsplanlegger v1.2 — ferdig (commits `380ddae` → `ba44115`)
+
+Alle 5 v1.2-deler portet og live på mayooran.com:
+
+- **Items:** «Forfaller»/«Gjør når»-labels, ↩ Gjenåpne for done-items,
+  «→ Til Prio», **FristChooser** (hurtigchips + mini-kalender + klokkeslett).
+- **Prio:** Triage→Prio rename (route-id beholdt), bane-navn redigerbare
+  (✎/dobbeltklikk), mobil-drag-fix (250ms long-press + scroll-lås +
+  tekst-markering-blokk).
+- **Oversikt (desktop):** Smart-fliser (I dag/Forfalt/Uke/Innboks),
+  momentum-fremdriftsring i AreaCard, «I dag» som default-landing.
+- **Oversikt (mobil):** Ny MobileOverview med Kort/Puls-bryter.
+- **Kalender:** Egen flate (Måned/Tidslinje/Gantt/År), flyttet til
+  hovedmeny ved siden av «I dag» (Mayos valg 2026-06-14).
+- **Fang:** Share/Siri/Widget-strip fjernet.
+- **Bonus:** Styrke-modulen fikk synlig autolagre-status + sticky
+  Fullfør-knapp + helt fikset bug der draften aldri ble lagret.
+
+### 📋 UX-rapport til Claude Design — `HANDOVER-UX-FOR-DESIGN.md`
+
+10 prioriterte UX-funn med konkrete forslag, basert på faktiske
+bug-rapporter + kode-audit. Topp 3 (P1 ⭐⭐⭐):
+
+1. **Data-sikkerhet er ikke synlig nok** — strength-bug + meeting-sync-bug
+   begge skyldes at lagring/sync-state er usynlig til det feiler. Foreslår
+   sentral «Statusbar / Safety-indicator»-chip alltid synlig.
+2. **«Hvor er datoen?»** — items uten dato har bare bane-flytting som vei.
+   FristChooser implementert i v1.2; trenger fortsatt «+ dato»-pill direkte
+   på ItemLine i lister.
+3. **Bunn-nav-tetthet** — 5 items + Fang-knapp = 6 ting på 375px. Foreslår
+   adaptiv tetthet (skjul labels under 360px).
+
+Resterende (P2/P3) ligger i handover-fila. Gi den til Claude Design.
+
+### ✅ Koblings-audit (alt i orden)
+
+- **systemd:** db-api, telegram-bot, cloudflared, nginx, docker, ollama — alle running.
+- **Postgres:** accepting connections, 54 MB DB, største tabell `health_sample` 31 MB.
+- **ChromaDB / Ollama:** heartbeat OK, Ollama har gemma3:4b lastet.
+- **HTTPS:** mayooran.com 200, db.mayooran.com health OK.
+- **Tokens:** Whoop refresh-token satt (87 bytes), Strava (40 bytes),
+  Google Calendar (gjenbrukbar — calendar.events scope).
+- **Backups:** daglig pg-dump + vault-tar siste 14 dager (siste 03:30 i dag).
+- **Cron:** 21 aktive linjer.
+- **Manglende indekser:** ingen kritiske (`calendar_event` har gode indekser,
+  høyt seq_scan-tall er mest fra full-table-resyncs).
+
+### 🧹 Dead code / vedlikehold
+
+- 6 `.bak`-filer ikke i git (server.py.bak, transcribe.py.bak, etc.). Mayo
+  kan trygt slette: `rm db_api/server.py.bak* modules/whisper/transcribe.py.bak modules/news/digest.py.bak infra/.env.bak infra/docker-compose.yml.bak.20260515-1134`
+- `server.py` er 5284 linjer — moden for å splittes i moduler (item_module/
+  meeting_module finnes; kandidater: jarvis_module, biometrics_module). Risikabelt
+  å gjøre uattendert, så ikke gjort.
+- Frontend bundle: 1 MB unminified (271 KB gz). Vite advarer om >500 KB.
+  Code-splitting kan implementeres for bedre TTI, men er ikke kritisk nå.
+
+### 🔚 Mayos huskeliste når han våkner
+
+1. **Kjør:** `sudo bash /home/mayo/mayo-ai-os/infra/scripts/fix-server-stability.sh`
+   (engangs — fikser swap + crash-loop-vern).
+2. **Verifiser:** `free -h` viser swap ≠ 0; `systemctl show db-api -p MemoryMax`
+   viser 4 GB.
+3. **Trigg synk** i Mac-appen for møtene fra 11. og 12. juni (de finnes
+   lokalt; bryteren var av, nå er den på).
+4. **Hvis tid:** gå gjennom `HANDOVER-UX-FOR-DESIGN.md` og send til Claude
+   Design for neste runde polish.
+5. **Hvis vil rydde:** slett .bak-filer som listet over.
+
+---
+
+## 🆕 Tidligere (2026-06-14, kveld) — App→Google Calendar synk (Fase 1) staget
+
+Backend (`mayo-ai-os`, `claude/confident-noether-lpacih`, fire commits):
+
+- **Migrasjon 007** (`e722e59`): `item.gcal_event_id` + `gcal_calendar_id` +
+  `gcal_synced_at` + `sync_state` + `sync_error` + 2 indekser. Idempotent.
+- **Sync-laget** (`cdc6ff2`): `modules/calendar/gcal_sync.py` — rene
+  hjelpere (`pick_dt`, `title_for`, `event_payload`, `calendar_name_for_track`),
+  `ensure_calendar` (auto-oppretter «Mayo OS» + «Mayo OS · Jobb»), `sync_item`
+  (idempotent insert/patch/delete; respekterer 60s undo; kalender-flytt =
+  delete+insert), `reconcile_once` (3 køer). `schedule_sync` fire-and-forget-
+  hook i POST/PATCH/DELETE /items (eksceptions svelges — API-svar blokkeres
+  aldri). `ItemCreate` fikk `scheduled_at`.
+- **Løkke-vern + 21 tester** (`d7a75a1`): leseren (`modules/calendar/sync.py`)
+  filtrerer events med `extendedProperties.private.mayo_item_id`. Tester
+  dekker I1-negativ (privat aldri til jobb-kalender, og motsatt), idempotent
+  ✓-prefiks, sensitiv-modus (`full`/`masked`/`skip`), 60s-undo-prinsipp,
+  scheduled_at-foran-due_at.
+- **Cron `*/3 min`** (`mayo-gcal-sync.sh`): staget, no-op til `CALENDAR_SYNC=1`.
+
+**🔴-til-sky dispensasjon (bevisst, Mayo 2026-06-14):** IVF + private manuelle
+oppgaver synkes med FULL tittel til Google. Konfigurerbart via
+`CALENDAR_SENSITIVE_MODE=full|masked|skip` (default `full`). Dette er ENESTE
+sted appens 🔴-prinsipp bevisst fravikes — `masked` = «Privat», `skip` = ingen
+synk. Eksisterende Google-token har allerede `calendar.events` write-scope —
+ingen re-consent nødvendig (motbevises kun hvis token ble opprettet før
+scope-utvidelse).
+
+**Status (2026-06-14 19:44 UTC):** **AKTIVERT** — `CALENDAR_SYNC=1`. Første
+manuelle sweep gikk grønt: 1 privat item insertet → «Mayo OS»-kalenderen
+(item `e3fa6f47-92f3-47bb-8035-17a839e75308`, «Re-autoriser Whoop OAuth…»).
+Re-kjørt sweep er idempotent (0 operasjoner). Cron `*/3 min` håndterer
+sweep videre.
+
+**Pre-opprettet kalender** — tokenet har `calendar.events` + `calendar.readonly`,
+men IKKE `calendar` (full), så `events.insert` virker men ikke
+`calendars.insert`. Mayo opprettet «Mayo OS» manuelt i Google UI (2026-06-14)
+og kalender-ID-en er pinnet i `.env` som `CALENDAR_SYNC_ID_PRIVAT=<satt>`.
+`ensure_calendar` sjekker env-override FØR den prøver å opprette → ingen
+403. Re-consent kan gjøres senere hvis det blir behov for å auto-opprette
+nye kalendere.
+
+**Spec §9.1 svart (Mayo 2026-06-14):** Obs BYGG (jobb) skal IKKE synkes —
+de eier sin egen kalender; unngår dobbel-booking. Default
+`CALENDAR_SYNC_SKIP_JOBB=1`. Overridbart med `=0` hvis ønsket senere.
+Sweep fjerner allerede synkede jobb-events fra Google når flagget er på.
+
+---
+
+## 🆕 Tidligere (2026-06-14) — Livsplanlegger frontend live på mayooran.com
+
+Frontend (`mayo-os`, branch `feat/whoop-redesign`, auto-deploy via `deploy-frontend.yml`):
+- **Fase 1-flater** (PR #15, `b03f79c`): I dag · Triage (2-modus + drag + WIP-3) · Fang · Item/Monday · L0 Kart. Datalag `livsplan/store.js` (ekstern store + localStorage-outbox, ærlig lagring I3).
+- **Zoombar oversikt L0→L5** (PR #16, `64a2977`): wheel/pinch/skinne/snap zoom-motor + klient-fallback.
+- **Desktop master/detail** (PR #17): venstre skinne + kommando-kart (3-kol kort, sparkline, status-farge, drill) + detalj-panel. Responsiv via `useIsDesktop` (≥1024px).
+- **Eget funnel-nav + Revidere** (PR #18, `c98a04f`): `/livsplan` er full-bleed, app-skallets globale nav skjult; funnel (I dag/Triage/Oversikt/Revidere) + Fang.
+- **Fullført-arkiv + område-CRUD** (`3bf9638`, VPS-Claude): rename/farge/sone/slett + fullført-arkiv (oppgaver beholdes ved sletting).
+- **CLAUDE.md DEFINITION OF DONE** (frontend `d4c84ad`): varig regel — en oppgave er ikke ferdig før commit + push + STATE.md + PR.
+
+Backend (`mayo-ai-os`, `claude/confident-noether-lpacih`):
+- **`GET /overview`** (`552127b`): L0/L1/L2-aggregat (`item_logic.build_overview`), 5/5 tester. **IKKE deployet enda** (token-403 på workflow_dispatch) → kjør `cd ~/mayo-ai-os && ./deploy.sh` for å aktivere; til da bruker frontend klient-fallback.
+
+**Utestående:** område-CRUD trenger backend-endepunkter (`life_area` er fast seed i dag — frontend lagrer lokalt i localStorage, persisterer ikke på tvers av enheter). Recovery-ring (Whoop), tweaks-panel, Fraunces-titler per mobil-flate = polish.
+
+**⚠️ Forbehold:** alle frontend-deploys i natt er bygd grønt men **ikke device-verifisert** (web-Claude har ingen browser). Sjekk mobil + desktop. Rask tilbakerulling: revert merge-commit + redeploy.
 
 ---
 
