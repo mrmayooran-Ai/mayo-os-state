@@ -4,7 +4,20 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-15 10:05 · **Av:** Claude (14 moduler trukket ut, server.py -70%) · **Versjon:** v0.14 monolith-split komplett
+**Sist oppdatert:** 2026-06-15 12:13 · **Av:** Claude (MCP list_inbox ren UX — frist + viktighet, ID-er skjult) · **Versjon:** v0.14 monolith-split komplett
+
+## 🎯 Nyeste (2026-06-15 12:13) — MCP list_inbox UX-iterasjon 2
+
+Mayo: «fortsatt kommer tall. jeg må ha task navn og frist dato og viktighet».
+- `_tool_list_inbox` rebuilt: tittel + frist (relativ tid) + prio (lav/medium/høy) + område
+- Frister: «i dag», «i morgen», «om N dager», absolutt dato i parentes
+- ID-mapping flyttet til en TOOL_INTERNAL-seksjon (HTML-kommentar + instruks)
+- Tool-description forsterket med eksplisitt «vis ALDRI TOOL_INTERNAL»
+- Bekreftet av Mayo: Claude.ai viser nå 20 oppgaver helt rent, ingen tall/IDer
+- Commits: `fdb009a` (logikk) + `d6356ae` (description-instruks)
+- Deployet via `./deploy.sh` (PID 184352)
+
+
 
 ---
 
