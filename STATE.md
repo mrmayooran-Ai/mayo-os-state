@@ -4,7 +4,34 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-15 12:13 · **Av:** Claude (MCP list_inbox ren UX — frist + viktighet, ID-er skjult) · **Versjon:** v0.14 monolith-split komplett
+**Sist oppdatert:** 2026-06-15 17:05 · **Av:** Claude (v1.2-handoff importert til frontend-repo) · **Versjon:** v0.14 monolith-split komplett
+
+## 🎯 Nyeste (2026-06-15 17:00) — Livsplan v1.2-handoff importert
+
+Mayo lastet opp `mayooran.com Design v1.1 (8).zip` (misvisende navn — inneholder
+hele v1.2-bundle) til vaulten. Pakket ut til `mayo-os-deploy/_design/livsplan-v12-handoff/`.
+
+**Innhold:**
+- 14 ferdig porterte JSX-filer i `src/livsplan_v12/`
+- 2 standalone HTML-fasit (mobil + desktop)
+- 6 handover/spec-dokumenter + CLAUDE.md + README
+- `src/app/` primitiver: icons, primitives, tokens
+
+**Status:**
+- 2 commits på `feat/whoop-redesign` (frontend-repo, ikke pushet):
+  - `1a697b1` import av handoff
+  - `5e64cfb` KICKSTART-merge-til-repo.md
+- Backend MCP `list_inbox`-UX fra tidligere session: commits `fdb009a`, `d6356ae`, `92d39b8` (på `claude/confident-noether-lpacih`, pushet)
+
+**Surprise-funn:** `/home/mayo/mayo-os-deploy/` er IKKE bare deploy-katalog —
+det er frontend-repoet `mayo-os` (origin: `github.com/mrmayooran-Ai/mayo-os.git`).
+Det betyr v1.2-merge KAN kjøres fra VPS, men neste session må starte friskt
+(forrige nådde 90% session limit før merge kunne begynne).
+
+**Neste:** ny session leser `_design/livsplan-v12-handoff/KICKSTART-merge-til-repo.md`
+→ oppretter `src/mobile/livsplan_v12/` parallelt med v1.1 → porterer + Vite-tilpasser.
+
+
 
 ## 🎯 Nyeste (2026-06-15 12:13) — MCP list_inbox UX-iterasjon 2
 
