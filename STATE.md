@@ -4,7 +4,53 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-15 09:42 · **Av:** Claude (6 moduler trukket ut, server.py -47%) · **Versjon:** v0.13 monolith-split fullført
+**Sist oppdatert:** 2026-06-15 10:05 · **Av:** Claude (14 moduler trukket ut, server.py -70%) · **Versjon:** v0.14 monolith-split komplett
+
+---
+
+## 🎯 Final (2026-06-15 09:42 → 10:05) — Alle 8 gjenværende moduler trukket ut
+
+Etter første 6 moduler (-47%) kjørte Mayo «kjør alle i rekkefølge uten stopp».
+8 nye moduler portet med samme mønster — register router → flytt endepunkter
+→ verifiser mot prod → commit per modul. Total runtime: ~25 min.
+
+| # | Modul | Endepunkter | Commit | server.py-linjer |
+|---|-------|-------------|--------|------------------|
+| 7 | calendar_module.py | 4 | 9d32b05 | 2480 |
+| 8 | email_module.py | 5 | 9d32b05 | 2480 |
+| 9 | finance_local_module.py | 5 | 8f206fe | 2300 |
+| 10 | notes_module.py | 6 | 8f206fe | 2300 |
+| 11 | goals_module.py | 6 | af75f3a | 1980 |
+| 12 | habits_module.py | 5 | af75f3a | 1815 |
+| 13 | weight_module.py | 3 | af75f3a | 1690 |
+| 14 | chat_module.py | 3 | af75f3a | **1590** |
+
+**Sluttresultat etter ALLE 14 moduler:**
+- server.py: 5284 → **1590 linjer (-3694, -70%)**
+- 14 nye moduler: ~3300 linjer totalt
+- 99 endepunkter migrert
+
+Server.py inneholder nå BARE: auth-middleware, /health, /strava-ruter,
+audit-log, vault/tree, brief, search/cross-domain, voice/jarvis, og noen
+helt spesialiserte ting (calendar OAuth callback osv).
+
+### Special handling per modul
+
+- **finance_local_module**: navnesuffix -local for å unngå kollisjon med
+  `finance_advisor/backend/finance_module.py`.
+- **trading_module**: erstattet eldre Notion-fallback (.legacy-backup);
+  sys.modules-cache måtte poppes for å unngå wrong `advisor` import fra
+  finance_advisor.
+- **calendar_module**: GET /calendar-auth (OAuth callback) BEHOLDT i
+  server.py som spesialformål.
+- **chat_module**: Jarvis-ruting + ekspert-persona + Anonymizer er
+  alle preservert intakt.
+
+---
+
+## 🆕 Aller siste (2026-06-15 09:25–09:42) — Trukket ut 5 nye moduler
+
+Etter journal_module.py (-23%) gikk samme mønster på 5 moduler til,
 
 ---
 
