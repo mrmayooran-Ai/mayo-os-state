@@ -14,9 +14,17 @@ Mens Mayo sov, gikk Claude Code gjennom hele systemet for optimalisering,
 feilretting og UX-forbedringer. Tre konkrete handlinger venter på Mayo
 i morgen, alt annet er ferdig + committet + pushet.
 
-### 🛡️ Server-stabilitet — krever sudo (commit `c994a6e`)
+### 🛡️ Server-stabilitet — ✅ ANVENDT 2026-06-15 08:33 (commit `c994a6e`)
 
-**ROTÅRSAK funnet for «server kveles ofte»:**
+Mayo kjørte `sudo bash infra/scripts/fix-server-stability.sh` 08:33:43.
+Resultat (alt grønt):
+- Swap: **4.0 Gi total**, 179 Mi allerede i bruk av kernel.
+- MemoryHigh: 3 GB, MemoryMax: 4 GB (cgroup-cap).
+- db-api: PID 131884 (én prosess), health OK.
+- Gammel unit sikkerhetskopiert til `/etc/systemd/system/db-api.service.bak.20260615`.
+- `/etc/fstab` har swap-linjen (overlever reboot).
+
+**Rotårsaken som ble fanget:**
 
 1. **Crash-loop Jun 11 09:12-09:15** — stale uvicorn-prosess holdt port 8001 →
    `Errno 98 Address already in use` hvert 13. sekund i 5 minutter. Hver
@@ -26,20 +34,7 @@ i morgen, alt annet er ferdig + committet + pushet.
    Whisper+Ollama+Postgres+db-api+litellm tilsammen topper. Forklarer
    Mayos «RAM-bruken er lav ofte i løpet av dagen».
 
-**Fix klargjort, krever Mayos sudo-passord:**
-
-```bash
-sudo bash /home/mayo/mayo-ai-os/infra/scripts/fix-server-stability.sh
-```
-
-Scriptet gjør (idempotent):
-- Aktiverer 4 GB swap-fil (`/swapfile`, lagt til `/etc/fstab`).
-- Installerer ny `db-api.service` (kopi i `infra/db-api.service.proposed`):
-  - `ExecStartPre=fuser -k 8001/tcp` (dreper stale før bind).
-  - `StartLimitBurst=5 / StartLimitIntervalSec=300` (stopper crash-loop-hammering).
-  - `MemoryMax=4G / MemoryHigh=3G` (cgroup v2 — hard cap mot runaway).
-  - `TimeoutStopSec=30 + KillMode=mixed` (Whisper-jobs henger ikke evig).
-- `systemctl daemon-reload + restart` + verifikasjons-health-sjekk.
+Begge fanget av samme script (idempotent), nå anvendt i prod.
 
 ### 🎨 Livsplanlegger v1.2 — ferdig (commits `380ddae` → `ba44115`)
 
