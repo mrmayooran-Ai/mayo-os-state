@@ -4,9 +4,28 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-15 21:00 · **Av:** Claude (planlegger-session) · **Versjon:** v0.16 PT coach enrichment + notification center
+**Sist oppdatert:** 2026-06-15 20:25 · **Av:** Claude (planlegger-session) · **Versjon:** v0.17 fix recency tid-på-døgn
 
-## 🎯 Nyeste (2026-06-15 21:00) — PT coach enrichment + smart recency + notification center
+## 🎯 Nyeste (2026-06-15 20:25) — Fix: feil «timer siden» på samme-dags økter (`e193017`)
+
+**Mayos rapport:** «på push sier den trent for 20t siden — men hadde push 7 timer siden.»
+
+**Rotårsak:** `/api/training?days=8` (strava_training_module.py) strippet
+klokkeslettet fra hver økts dato (`date.split("T")[0]`). Frontend regner
+«timer siden» via `groupHoursSinceAny` → `new Date("2026-06-15")` = midnatt
+UTC, ikke faktisk treningstid. En push kl ~13 ble målt fra midnatt → ~20t i
+stedet for 7t → falskt rødt lys + re-anbefalte nettopp-trent gruppe.
+
+**Fix:** behold fullt ISO-tidsstempel i `date`; bruk kun dato til stabil
+fallback-id. Backendens egen recency (frequency.py `parse_workouts` via
+`fromisoformat`) var allerede korrekt — kun frontend-stien var rammet.
+Frontend `isoOf` bruker lokale dato-komponenter → ISO-uke uendret.
+
+**Krever backend-deploy:** `cd ~/mayo-ai-os && ./deploy.sh`.
+
+---
+
+## 🎯 (2026-06-15 21:00) — PT coach enrichment + smart recency + notification center
 
 ### PT-forbedringer (3 commits: `9be23b5`, `8c8262a`, `e88843b`)
 
