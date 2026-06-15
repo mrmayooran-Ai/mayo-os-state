@@ -4,7 +4,43 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-15 morgen · **Av:** Claude (journal_module.py-refaktor 100% ferdig) · **Versjon:** v0.12 server.py -23%, monolith-split startet
+**Sist oppdatert:** 2026-06-15 09:42 · **Av:** Claude (6 moduler trukket ut, server.py -47%) · **Versjon:** v0.13 monolith-split fullført
+
+---
+
+## 🆕 Aller siste (2026-06-15 09:25–09:42) — Trukket ut 5 nye moduler
+
+Etter journal_module.py (-23%) gikk samme mønster på 5 moduler til,
+i prio-rekkefølge per Mayos valg. ALLE verifisert mot prod med ekte data.
+
+| Runde | Modul | Endepunkter | Commit | server.py-linjer etter |
+|-------|-------|-------------|--------|------------------------|
+| 1 | journal_module.py | 24 (8 sub-commits) | a4f7bd1 | 4050 |
+| 2 | strength_module.py | 10 | f225e01 | 3717 |
+| 3 | reminders_module.py | 8 | 64115e5 | 3370 |
+| 4 | tasks_module.py | 6 | d5fe108 | 3023 |
+| 5 | nutrition_module.py | 7 | aa44003 | 2870 |
+| 6 | trading_module.py | 7 | 6d9e36b | **2780** |
+
+**Totalresultat:** server.py 5284 → **2780 linjer (-2504, -47%)**
+
+Nye moduler:
+- journal_module.py: 1338 linjer (24 ruter)
+- strength_module.py: 372 linjer (10 ruter)
+- reminders_module.py: 341 linjer (8 ruter)
+- tasks_module.py: 301 linjer (6 ruter)
+- nutrition_module.py: 206 linjer (7 ruter)
+- trading_module.py: 135 linjer (7 ruter; gammel Notion-fallback i .legacy-backup)
+
+**Total kode:** 5284 → 5273 linjer (samlet redusert, ikke bare flyttet)
+
+Bug oppdaget + fikset under prod-test: `modules/trading` og
+`finance_advisor/backend` har SAMME filnavn (advisor.py, run.py).
+Python's sys.modules cacher første loading → wrong module-bytting.
+Fix: trading_module._trading_path() pop'er sys.modules-keys før
+import → tvinger fersk lookup fra modules/trading.
+
+---
 
 ---
 
