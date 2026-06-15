@@ -4,7 +4,42 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-14 sent kveld · **Av:** Claude (full audit + UX-rapport) · **Versjon:** v0.11 stabilitet + v1.2 ferdig + UX-handover
+**Sist oppdatert:** 2026-06-15 morgen · **Av:** Claude (journal_module.py-refaktor 100% ferdig) · **Versjon:** v0.12 server.py -23%, monolith-split startet
+
+---
+
+## 🆕 Aller siste (2026-06-15 08:45 → 09:18) — journal_module.py 100% ferdig
+
+8 commits over 30 min. ALLE 24 journal-endepunkter migrert ut av
+server.py-monolitten. Hver runde verifisert mot prod med curl.
+
+| Runde | Commit | Endepunkter | server.py-linjer etter |
+|-------|--------|-------------|------------------------|
+| 1 | `1f8b0bb` | 4 lese (list/by-tag/by-id/wiki-links) | 5224 |
+| 2 | `17e83b2` | 5 skriv (POST/PATCH/DELETE + quick + geo) | 5126 |
+| 3 | `b8cd6a5` | 3 lese (insights/related/backlinks) | 4901 |
+| 4 | `a7def61` | 2 voice (text + audio) | 4824 |
+| 5 | `21fdf87` | 5 (search/ask/sync-vault/psykolog x2) | 4634 |
+| 6 | `4021eb7` | 1 (graph) | 4528 |
+| 7 | `b8c97ec` | 2 media + slett 9 dead helpers | 4264 |
+| 8 | `a4f7bd1` | 1 (voice-journal m/ chunking + Claude) | 4050 |
+
+**Resultat:**
+- server.py: 5284 → **4050 linjer (-1234, -23%)**
+- journal_module.py: 0 → **1338 linjer** (ny)
+- Total: 5284 → 5388 (+104 — godt trade-off for løs kobling)
+
+Server.py kjenner ikke til ÉN /journal-rute lenger. Alle media-helpers,
+geo-enrichment, Pillow/HEIC, Whisper, Claude-strukturering, og psykolog-
+synteser bor nå i journal_module. 9 dead helpers + 6 konstanter slettet.
+
+Neste kandidater for splitting (per HANDOVER-UX-FOR-DESIGN.md §X):
+- `strength_module.py` (10 endepunkter, ~400 linjer)
+- `reminders_module.py` (8 endepunkter)
+- `tasks_module.py` (6 endepunkter)
+- `nutrition_module.py` (7 endepunkter)
+
+---
 
 ---
 
