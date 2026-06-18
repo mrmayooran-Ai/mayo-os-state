@@ -4,9 +4,204 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-15 17:05 · **Av:** Claude (v1.2-handoff importert til frontend-repo) · **Versjon:** v0.14 monolith-split komplett
+**Sist oppdatert:** 2026-06-18 12:45 · **Av:** Claude (terminal, VPS) · **Versjon:** v0.22 obs-bygg kanban
 
-## 🎯 Nyeste (2026-06-15 17:00) — Livsplan v1.2-handoff importert
+## 🎯 Nyeste (2026-06-18 12:45) — Brio-style kanban for /obs-bygg/oppgaver (`ac74b79` + `fc3f875`)
+
+**Trigger:** Mayo: "ta tak i neste oppgave i listen og kjør helt ut" — neste i
+REVIEW-2026-06-17.md (memo prio #4): Brio-style kanban for action-items.
+
+**Backend (`5c04ace`):**
+- Migration `016_action_item_kanban.sql` legger `kanban_lane TEXT` på
+  `meeting_action_item` + index `(user_id, kanban_lane)`.
+- `ActionItemPatch` utvidet med `kanban_lane`, så drag-drop PATCH-er det.
+- Nye endepunkter: `GET/PUT /action-items/board-config` lagrer lane-config
+  (id, title, color) i `settings_kv`-tabellen som key `obs_action_lanes`.
+  Default ved tom KV: Research / Jobbes med / I fremtiden.
+- `list_action_items` SELECT inkluderer `ai.kanban_lane`.
+
+**Frontend (`fc3f875`):**
+- `PageObs.jsx`: ObsTasks får view-toggle (Liste/Tavle) som persisteres i
+  `localStorage['obs.tasks.view']`. Default = Liste (bakoverkompatibel).
+- Ny `ObsKanban`-komponent (~200 linjer): brukerdefinerte kolonner med dra-
+  og-slipp mellom dem, lane-editor med rename/reorder/delete, orphan-
+  håndtering ved sletting, Gjort/Avvis-knapper bevart på kort. Speiler
+  livsplan_v12 KanbanBoard-mønstret men forenklet — global tavle-config
+  istedenfor per-parent (action-items er én felles brett).
+- Bundle: PageObs lazy-chunk vokste fra ~140KB → 146KB (+6KB). Main
+  bundle 594KB (uendret).
+
+**Smoke (`ac74b79`):** Ny test `11-obs-tasks-kanban.js` verifiserer
+toggle finnes, klikker Tavle, sjekker at Rediger kolonner + minst én
+default-lane rendres. 11/11 pass på andre kjøring (test 08 hadde én flake
+på /helse-tekstmatch, ikke relatert).
+
+**E2E-verifisert:** `curl PATCH /action-items/{id} {kanban_lane:"research"}`
+→ 200, GET viser kanban_lane i response.
+
+---
+
+## 🎯 2026-06-16 07:46 — PT-audit Fase E (loose ends) (`193e8e4`)
+
+**Trigger:** Mayo: "kjør fase e" — fortsetter etter Fase D-rapporten der jeg
+flagget tre forbedringer som «kommer i Fase E».
+
+**Fase E (frontend `193e8e4`):**
+- E1: `routes/health/Program.jsx` parallell-fetcher nå `action=coach` +
+  `action=daily`. Ny per-gruppe restitusjons-glass viser timer-siden + terskel
+  per push/pull/ben + `picked_group`-markering. Desktop ↔ mobil paritet.
+- E2: `PageStyrke` trafikklys-knapper: title-tooltip per gruppe
+  ("push: <36t rød · 36–60t gul · >60t grønn") + inline `vindu 36/60t`-mono
+  på valgt rutine. Mayo ser hvor lyset bytter.
+- E3 (§3.2-D): `routes/strength/Strength.loadRoutine` mapper nå
+  `daily.planlagt[].anbefaling` → `item.rec` per `exId` når rutine-id
+  matcher motorens valg. `ExerciseCard` bruker allerede
+  `item.rec || recommendNext()` — backend tar over som SOT, lokal
+  fallback for ikke-daily-rutiner. Eliminerer drift-risiko mellom JS- og
+  Python-progresjons-motorer.
+
+**Tester:** uendret (99/99 grønne — Fase E er ren wire-up uten ny logikk).
+**Frontend-deploy:** `193e8e4` live på mayooran.com.
+
+**Status PT-audit:** Fase A+B+C+D+E fullført. Audit-doken pluss alle
+loose ends lukket.
+
+---
+
+## 🎯 (2026-06-16 05:40) — PT-audit Fase C+D fullført (`225dc4e`, `356cc7e`)
+
+**Trigger:** Mayo: "kjør fase c og d" — fortsetter HANDOVER-PT-HEALTH-AUDIT.
+
+**Fase C — arkitektur (`225dc4e` backend + `356cc7e` frontend):**
+- C2 (§3.3-J): `_daily_brief` beriker recovery med Garmin-signaler hentet
+  fra `health_daily(source='garmin')` — body_battery, stress_avg,
+  resting_hr. `pt_llm.anonymize()` inkluderer disse → coach ser komplett
+  Whoop+Garmin-bilde. Motoren bruker ikke Garmin i gating ennå (forsiktig).
+- C3 (§3.2-E): Differensierte restitusjons-terskler. THRESHOLDS = {push
+  (36, 60), pull (48, 72), ben (60, 84), markloft (60, 84)}. Push raskest,
+  ben/markløft tregest (aksial). `_freq_band` tar group-parameter. Frontend
+  `strength.js.FREQ_THRESHOLDS` + `PageStyrke` synket med backend.
+- C1 (§3.3-H): Allerede gjort (Strava OAuth-fetch primær, Apps Script
+  fallback) — verifisert, ingen endring.
+
+**Fase D — UX-pass:**
+- D1: PageStyrke/PageHelse null-disiplin god. Bugg: hardkodet `h < 48` i
+  note-tekst (PageStyrke:775) → erstattet med per-gruppe `tAvvis`.
+- D2 (trafikklys): Solid design. Anbefaling: vis terskel-tall på
+  hover/tap så Mayo lærer per-gruppe-grensen.
+- D3 (coach-tekst): Prompt + anonymize + fallback-kjede solid. Trenger
+  live-sampling for subjektiv kvalitet.
+- D4: Desktop `routes/health/Program.jsx` leser `action=coach` (subset),
+  mobil `PageStyrke` leser `action=daily` (full motor). Funksjonelt OK,
+  desktop mangler recency/picked_group. Lavprioritet å unifisere.
+
+**Tester:** 98 → 99 grønne. Lagt til `test_T17b_per_group_thresholds_locked`.
+
+**Backend-deploy:** db-api restartet. **Frontend-deploy:** `356cc7e` live.
+
+**Status PT-audit:** Fase A+B+C+D fullført. Audit-doken lukket.
+
+---
+
+## 🎯 (2026-06-15 21:00) — PT-audit Fase A+B fullført (`2c0c340`, `edd4f5a`, `2a2d98a`)
+
+**Trigger:** `HANDOVER-PT-HEALTH-AUDIT.md` (`a2eeadf`) — fra planlegger til terminal.
+
+**Fase A — verifisering (`2c0c340`):**
+- A1: e193017-fixen er på disk + korrekt — `sessions[].date` beholder full ISO-ts.
+- A2: pytest 79 → 86/86 ✓. Fant + fikset import-chain-bug i `strava_watcher.py`
+  (manglet `_ROOT` på sys.path → 7 zones_hrlag-tester gikk ned ved pytest cwd).
+- A3: `_merge_recency` bruker `min(vals)` per gruppe — bekreftet + låst med
+  `tests/test_merge_recency.py` (6 tester inkl. eksplisitt MAX-regresjons-guard).
+
+**Fase B — fixes (`edd4f5a` backend + `2a2d98a` frontend):**
+- B1 (§3.2-A): Frontend↔backend recency synket. `/training?action=daily`
+  eksponerer nå `card.recency` + `picked_group`. PageStyrke leser disse
+  direkte i stedet for å regne lokalt → eliminerer divergens-risiko der lokal
+  kunne vise GRØNT mens backend sa RØDT.
+- B2 (§3.2-C): `okt_logikk._PUSH_RE`/`_LEGS_RE` fjernet. Bytt til nye public
+  helpers `is_push_request()` / `is_legs_request()` / `title_mentions_group()`
+  i `parser.py` som bruker SAMME `_KEYWORDS` som `parse_title`. Fritekst og
+  Strava-titler kan ikke lenger drifte. Manglende keywords lagt til:
+  PUSH (skulderpress, brystpress, tricep, pec fly), LOWER (legext, utfall,
+  tåhev, lår).
+- B3 (§3.2-G): `strength_session.ts` er TIMESTAMPTZ end-to-end. Frontend
+  sender ISO+Z, backend bruker `fromisoformat()`, `_parse_ts` håndterer
+  string/naive/aware korrekt. Ingen kodefiks — låst med
+  `tests/test_parse_ts.py` (6 tester).
+- B4 (§3.2-F): Eksplisitt «Whoop-data ikke tilgjengelig»-banner over
+  trafikklys-kort i PageStyrke når `!hasRec`. Forhindrer feiltolkning av
+  grå/grønne dots som "alt klart" når recovery-sone er ukjent.
+
+**Tester:** 92 → 98/98 grønne. **Backend-deploy:** db-api restartet.
+**Frontend-deploy:** `2a2d98a` live på `mayooran.com`.
+
+**Gjenstår (Fase B):** ingen i scope. Fase C (arkitektur) + D (UX-pass)
+venter på Mayos go.
+
+---
+
+## 🎯 (2026-06-15 20:25) — Fix: feil «timer siden» på samme-dags økter (`e193017`)
+
+**Mayos rapport:** «på push sier den trent for 20t siden — men hadde push 7 timer siden.»
+
+**Rotårsak:** `/api/training?days=8` (strava_training_module.py) strippet
+klokkeslettet fra hver økts dato (`date.split("T")[0]`). Frontend regner
+«timer siden» via `groupHoursSinceAny` → `new Date("2026-06-15")` = midnatt
+UTC, ikke faktisk treningstid. En push kl ~13 ble målt fra midnatt → ~20t i
+stedet for 7t → falskt rødt lys + re-anbefalte nettopp-trent gruppe.
+
+**Fix:** behold fullt ISO-tidsstempel i `date`; bruk kun dato til stabil
+fallback-id. Backendens egen recency (frequency.py `parse_workouts` via
+`fromisoformat`) var allerede korrekt — kun frontend-stien var rammet.
+Frontend `isoOf` bruker lokale dato-komponenter → ISO-uke uendret.
+
+**Krever backend-deploy:** `cd ~/mayo-ai-os && ./deploy.sh`.
+
+---
+
+## 🎯 (2026-06-15 21:00) — PT coach enrichment + smart recency + notification center
+
+### PT-forbedringer (3 commits: `9be23b5`, `8c8262a`, `e88843b`)
+
+**Parser (`9be23b5`):**
+- ~20 nye norske gym-keywords (bryst, skulder, overkropp, nedtrekk, dips, arnold, sidehev, ben, glute, etc.)
+- Strava Type-fallback: Run→Aerob, Ride→Aerob, etc. (brukes kun når tittel-keywords gir 0 treff)
+- 33 tester (opp fra 17), alle grønne
+
+**Recency-merge (`8c8262a`):**
+- `_merge_recency()` i daily_card.py: tar MIN per muskelgruppe fra BÅDE strength_session-logg OG Strava-parser
+- Tidligere overskrev Strava-override hele session-dataen — nå supplerer den
+- Recovery-kontekst beriket: sleep_efficiency, deep_sleep_min, rem_sleep_min, strain_yesterday fra Whoop
+- Motor-tekst annoterer datakildene ("Recency-kilder: styrkelogg + Strava")
+
+**Coach-enrichment (`e88843b`):**
+- `anonymize()` eksponerer ALLE planlagte øvelsers sist-tall (ikke bare hovedløftet)
+- PT_SYSTEM-prompten forsterket: strain, "push når dataen tåler det, hold igjen når den ikke gjør det"
+- Daglig PT-rapport → notification bell (`create_notification(category="health")`)
+- Ukentlig PT-rapport → notification bell (`weekly_report.py:_notify()`)
+
+### In-app notification center (bell icon) (`49306a7` + `f8bf84f`)
+
+**Backend:**
+- Migration `008_notifications.sql`: `notification`-tabell (category, title, body, url, icon, read_at)
+- `notification_module.py`: GET /notifications, PATCH /{id}/read, POST /read-all, GET /unread-count
+- `create_notification()` helper for intern bruk (trading, health, etc.)
+- `send_signals.py`: trading-signaler → DB-notifikasjon istedenfor Telegram (gated bak `TRADING_TELEGRAM_SEND=0`)
+
+**Frontend:**
+- `NotificationBell.jsx`: bell icon + dropdown panel i desktop Topnav
+- Polls unread-count hvert 60s, merk lest/merk alle lest, navigerer til url
+- Sovereign Glass-estetikk, magenta unread-badge med glow
+
+**Deploy-rekkefølge (kreves på VPS):**
+1. `psql mayo_sov -f ~/mayo-ai-os/migrations/008_notifications.sql`
+2. `cd ~/mayo-ai-os && ./deploy.sh` (backend — alle 4 commits)
+3. `cd ~/mayo-os-deploy && git fetch origin feat/whoop-redesign && git reset --hard FETCH_HEAD && ./deploy.sh skip-pull` (frontend)
+
+---
+
+## 🎯 (2026-06-15 17:00) — Livsplan v1.2-handoff importert
 
 Mayo lastet opp `mayooran.com Design v1.1 (8).zip` (misvisende navn — inneholder
 hele v1.2-bundle) til vaulten. Pakket ut til `mayo-os-deploy/_design/livsplan-v12-handoff/`.
