@@ -4,9 +4,26 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-18 12:45 · **Av:** Claude (terminal, VPS) · **Versjon:** v0.22 obs-bygg kanban
+**Sist oppdatert:** 2026-06-18 13:05 · **Av:** Claude (terminal, mayo-os-deploy) · **Versjon:** v0.22.1 lazy-routes Suspense-fix
 
-## 🎯 Nyeste (2026-06-18 12:45) — Brio-style kanban for /obs-bygg/oppgaver (`ac74b79` + `fc3f875`)
+## 🎯 Nyeste (2026-06-18 13:05) — fix(spa): Suspense rundt lazy routes (`cc2637e`)
+
+**Trigger:** Mayo: "kommer ikke inn på flere av tabbene i mayooran.com".
+
+**Diagnose:** Commit `66c95bf` (lazy-load 9 mobile pages) påstod i melding
+at MayoShell allerede hadde `<Suspense>` rundt `<Outlet/>` — det stemte
+ikke. Navigasjon til /strength, /helse, /tasks, /brain, /assistent,
+/kalender, /livsplan*, /obs-bygg/* fikk React til å kaste «component
+suspended without boundary», hele app-treet blanket. Kun `/` (PageHjem,
+eager-importert) overlevde.
+
+**Fix (`cc2637e`):** Pakket alle tre `<Outlet/>`-steder i `MayoShell.jsx`
+i `<Suspense fallback="Laster…">`. Build OK, push trigger auto-deploy.
+
+**Lærdom:** commit-meldinger kan lyve. Verifiser når kode antar at en
+boundary/wrapper finnes andre steder.
+
+## 🎯 Forrige (2026-06-18 12:45) — Brio-style kanban for /obs-bygg/oppgaver (`ac74b79` + `fc3f875`)
 
 **Trigger:** Mayo: "ta tak i neste oppgave i listen og kjør helt ut" — neste i
 REVIEW-2026-06-17.md (memo prio #4): Brio-style kanban for action-items.
