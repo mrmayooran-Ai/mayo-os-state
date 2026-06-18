@@ -4,9 +4,25 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-18 13:05 · **Av:** Claude (terminal, mayo-os-deploy) · **Versjon:** v0.22.1 lazy-routes Suspense-fix
+**Sist oppdatert:** 2026-06-18 (ny økt) · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.22.1 + obs_gcal_dedupe.py inn i repo
 
-## 🎯 Nyeste (2026-06-18 13:05) — fix(spa): Suspense rundt lazy routes (`cc2637e`)
+## 🎯 Nyeste (2026-06-18, ny økt) — chore(infra): commit av obs_gcal_dedupe.py (`6d61cf1`)
+
+**Trigger:** Mayo: "hvor slappu sist?" → fant untracked
+`infra/scripts/obs_gcal_dedupe.py` (opprettet 17. juni 11:18, aldri
+committet). Mayo valgte å committe det som operasjonelt verktøy.
+
+**Hva er det:** Engangs-cleanup brukt 2026-06-17 da første Obs BYGG-
+backfill havnet i en auto-opprettet «Mayo OS · Obs BYGG»-kalender før
+`CALENDAR_SYNC_ID_OBS` var satt. Andre backfill (mot riktig kalender)
+etterlot 14 duplikater i auto-kalenderen. Scriptet sletter events med
+`mayo_meeting_id`-extendedProperty i ikke-target-kalendere og fjerner
+selve auto-kalenderen hvis den blir tom.
+
+**Hvorfor committe:** CLAUDE.md regel #1 — alt som skal kjøre skal være
+i git. Gjenbrukbar hvis calendar-sync-feilkonfig dukker opp igjen.
+
+## 🎯 Forrige (2026-06-18 13:05) — fix(spa): Suspense rundt lazy routes (`cc2637e`)
 
 **Trigger:** Mayo: "kommer ikke inn på flere av tabbene i mayooran.com".
 
@@ -23,7 +39,7 @@ i `<Suspense fallback="Laster…">`. Build OK, push trigger auto-deploy.
 **Lærdom:** commit-meldinger kan lyve. Verifiser når kode antar at en
 boundary/wrapper finnes andre steder.
 
-## 🎯 Forrige (2026-06-18 12:45) — Brio-style kanban for /obs-bygg/oppgaver (`ac74b79` + `fc3f875`)
+## 🎯 (2026-06-18 12:45) — Brio-style kanban for /obs-bygg/oppgaver (`ac74b79` + `fc3f875`)
 
 **Trigger:** Mayo: "ta tak i neste oppgave i listen og kjør helt ut" — neste i
 REVIEW-2026-06-17.md (memo prio #4): Brio-style kanban for action-items.
