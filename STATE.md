@@ -4,9 +4,46 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-18 (ny økt) · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.22.1 + obs_gcal_dedupe.py inn i repo
+**Sist oppdatert:** 2026-06-18 (kveld) · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** konsolideringssprint — 10/10 memo-punkter ferdig
 
-## 🎯 Nyeste (2026-06-18, ny økt) — chore(infra): commit av obs_gcal_dedupe.py (`6d61cf1`)
+## 🎯 Nyeste (2026-06-18, kveld) — Konsolideringssprint fra REVIEW-2026-06-17 (10 punkter)
+
+**Trigger:** Mayo: «ta alle punktene stegvis» — alle resterende punkter
+fra prio-listen + TL;DR-konsolideringspunkter.
+
+**Ferdig:**
+
+| # | Tema | Commit (backend) | Commit (frontend) |
+|---|------|------------------|-------------------|
+| C | Sky-backup-doctor (audit migrations + dumps + offsite-hook) | `1444534` | — |
+| #6 | Atomisk lane-cascade ved kanban_lanes-endring | `a2d801c` | — |
+| #7 | Feltnivå-diff audit-log på PATCH /items + meeting/summary | `ed63854` | — |
+| A2 | Smoke #12 noindex-privacy (chain-bug-test) | `7eee469` | — |
+| A1 | test_gcal_dedup (chain-bug-test) | `f1ab8de` | — |
+| A3 | Smoke #13 fuzzy-edge-cases | `bfd337f` | — |
+| #2 | Smoke #14 inbox-item søkbart (chain-bug-test) | `e864bb4` | — |
+| #10 | Pinch-zoom på /brain + /obs-bygg 3D-graf | — | `d08fdd8` |
+| #8 | ARIA-pass på ItemLine/SubtaskRow/AreaCard | — | `4ecf00a` |
+| B | Statisk duplikat-audit høyrepanel ↔ sentrum (rapport) | `0f39a15` | — |
+
+**Audit-funn (oppsummert i HANDOVER_RESULT.md):**
+- 2 reelle duplikasjoner mellom RightPanel og sentrum (KPI-tall HØY, forfalt-stack LAV)
+- Quick-fix er en CSS media-query — overlatt til frontend-revisjon
+
+**Tester:**
+- Pure-logic: 21/21 (item_logic) + 7/7 (audit) + 8/8 (gcal_dedup) ✓
+- Smoke: ny test #12 + #13 + #14 verifisert mot live mayooran.com ✓
+
+**Backend-deploy:** `sudo /bin/systemctl restart db-api` etter hver
+endring. Helsesjekk OK på alle. Live E2E-test av audit-diff (PATCH title+
+priority returnerte korrekt diff-rad i audit_log).
+
+**Pågående (Mayo la til etter første sprint):** 3 review-runder
+- /brain (Journal) review-runde
+- /tasks task-IA-konsolidering analyse
+- /kalender verifisering etter gcal-pull
+
+## 🎯 (2026-06-18, ny økt) — chore(infra): commit av obs_gcal_dedupe.py (`6d61cf1`)
 
 **Trigger:** Mayo: "hvor slappu sist?" → fant untracked
 `infra/scripts/obs_gcal_dedupe.py` (opprettet 17. juni 11:18, aldri

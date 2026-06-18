@@ -146,3 +146,71 @@ blanding observert.
 
 **Anbefaling:** ingen autonom frontend-bygging her (branch-regler + §7-gate). Når
 Mayo vil ha §7.3-punktene, gi tone/prioritet → bygges da. Spec er ellers «ferdig».
+
+---
+
+# HANDOVER_RESULT — Statisk duplikat-audit høyrepanel ↔ sentrum (2026-06-18)
+
+Svar på TL;DR-konsolideringspunkt fra REVIEW-2026-06-17 §1: «En statisk audit av
+høyrepanel + sentrum-flata for resterende duplisering (jeg så ennå flere i dag).»
+
+Auditen scannet `src/mobile/livsplan_v12/desktop.jsx` (RightPanel + RightSummary)
+og hoved-flatene (PageHjem, PageLivsplan, PageObs, PageStyrke, PageBrain, PageTasks,
+PageKalender) for genuine data-/layout-duplikater.
+
+## Reelle duplikasjoner funnet: 2
+
+### 1. KPI-tallene (I dag · Forfalt · Uka · Innboks) — HØY ALVORLIGHET
+
+**Forekomst A:** `livsplan_v12/desktop.jsx:344-356` (RightSummary KPI-rad)
+**Forekomst B:** `livsplan_v12/shared.jsx:142-165` (SmartTiles, rendres i sentrum)
+
+Begge beregner og viser de samme fire tallene:
+- `inDay / c.today` (oppgaver med state='today')
+- `overdue / c.overdue` (forfalt-cookie)
+- `inWeek / c.week` (state='week')
+- `inboxN / c.inbox` (state='inbox')
+
+På desktop ≥1280px ser brukeren «I dag: 5» både i høyrepanelet og i SmartTiles
+i sentrum samtidig. Forvirrende — særlig fordi tallene OPPDATERES asynkront
+hvis sources er forskjellige (RightSummary regner direkte mens SmartTiles bruker
+lpCounts-hjelper).
+
+**Forslag:** Skjul SmartTiles fra desktop-bredder (`@media (min-width: 1280px)
+{ display: none }`) når RightPanel er synlig, eller flytt KPI-radene til
+sentrum og fjern fra RightSummary. Førstnevnte er minst-risiko (en CSS-endring).
+
+### 2. Forfalt-stack — LAV ALVORLIGHET
+
+**Forekomst A:** `livsplan_v12/desktop.jsx:359-378` (RightSummary «Forfalt-stack»,
+opp til 5 forfalt items som klikkbare knapper).
+**Forekomst B:** Ingen direkte i dag, men forfalt-counter i KPI-rad (se #1) +
+forfalt-merker per ItemLine i sentrum overlapper semantisk.
+
+I dag er det greit fordi sentrum ikke ekspanderer forfalt til en egen liste.
+Risikoen er hvis PageToday eller en triage-modus legges til som viser
+«5 forfalt» som egen liste — da har vi tre steder.
+
+**Forslag:** Ingen aksjon nå, men noter som invariant: «forfalt-stack lever
+kun i RightSummary; sentrum kan vise antall, ikke liste.»
+
+## Pseudo-duplikasjoner (ikke aksjon)
+
+- **ItemLine** brukes både i RightPanel og sentrum — dette er intentional
+  delt komponent, ikke duplisering.
+- **7-dagers utsikt** finnes kun i RightSummary; ingen sentrum-versjon
+  enda. Hvis sentrum ekspanderes, harmoniser.
+
+## Rekkevidde-merknad
+
+Duplikasjonene er KUN på desktop ≥1280px (RightPanel skjules under).
+Mobile flater har ikke problemet.
+
+## Anbefalt rekkefølge
+
+1. **Quick win (5 min):** legg `display: none` på SmartTiles i v12 når
+   skjermbredden er ≥1280px (RightPanel viser samme info).
+2. **Invariant-doc:** noter «forfalt-stack lever kun i RightSummary» i
+   den interne arkitektur-doc'en (Notion-side `3636fb3c-...`).
+3. **Senere:** når PageToday vurderes, sjekk om 7-dagers utsikt bør
+   speiles eller flyttes — IKKE dupliseres.
