@@ -38,10 +38,15 @@ fra prio-listen + TL;DR-konsolideringspunkter.
 endring. Helsesjekk OK på alle. Live E2E-test av audit-diff (PATCH title+
 priority returnerte korrekt diff-rad i audit_log).
 
-**Pågående (Mayo la til etter første sprint):** 3 review-runder
-- /brain (Journal) review-runde
-- /tasks task-IA-konsolidering analyse
-- /kalender verifisering etter gcal-pull
+**Etterspurt etter første sprint og levert (rapporter i HANDOVER_RESULT.md):**
+
+| Review | Hovedfunn | Toppanbefaling |
+|---|---|---|
+| `/brain` | 🔴 XSS-vektor i Psykolog.jsx (marked.parse + dangerouslySetInnerHTML) | dompurify-wrap — 15 min |
+| `/kalender` | SPA leser fra `calendar_event`-tabell, gcal-pull skriver til `item`+`meeting` → mulig UI-gap | verifiser union i `/api/db/calendar` |
+| `/tasks` IA | `/api/db/tasks/unified` finnes i backend, ikke brukt i SPA. 4+1 task-flater + ~100KB duplikat | Fase 1: assigned_to + migrer meeting_action_item → item (~4–5t) |
+
+Commit-hash for review-blokken: `3437ace`.
 
 ## 🎯 (2026-06-18, ny økt) — chore(infra): commit av obs_gcal_dedupe.py (`6d61cf1`)
 

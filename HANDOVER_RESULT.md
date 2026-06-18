@@ -214,3 +214,247 @@ Mobile flater har ikke problemet.
    den interne arkitektur-doc'en (Notion-side `3636fb3c-...`).
 3. **Senere:** når PageToday vurderes, sjekk om 7-dagers utsikt bør
    speiles eller flyttes — IKKE dupliseres.
+
+---
+
+# HANDOVER_RESULT — /brain (Journal) review (2026-06-18)
+
+Memo §1: «/brain — tro at dette er kraftigste flata du har bygget…
+verdt en egen review-runde.»
+
+## Strukturoversikt (6 fane-komponenter + 9 støttekomp.)
+
+| Komp | LOC | Ansvar |
+|---|---|---|
+| Graph.jsx | 1019 | 3D auto-roterende mindmap fra journal-entries (nodes = entries, edges = topic-overlap). Custom SVG, ingen tunge 3D-libs. |
+| Tidslinje.jsx | 382 | Day-One-stil feed (måned → uke → entry). Voice-innspilling (MediaRecorder). FAB+. |
+| Oversikt.jsx | 297 | Nøkkeltall, aktivitetsgraf, mood/tags + **«Spør Mayo» RAG** (ChromaDB→Claude). |
+| Psykolog.jsx | 749 | Innsikt + Samtale. Weekly auto-refleksjoner. **Bruker marked.parse + dangerouslySetInnerHTML**. |
+| Kart.jsx | 119 | Fase-2 preview (entries→koordinat). Kun konsept i dag. |
+| Media.jsx | 75 | Fase-2 preview (bildegalleri). Tomt i dag. |
+| components/ | 1484 | FullscreenEditor (autosave 1.4s debounce), FilterTile, StatsStrip, UnifiedBar m.fl. |
+
+## Sterke sider
+
+1. **Solid 3D-grafarkitektur** — custom SVG, auto-rotate/drag/pinch (etter
+   denne sesjonen), 3D→2D toggle, halo-ringer + breathing mood-ring,
+   edge-pulsing via tick-basert bezier-interpolasjon.
+2. **Modulær komponent-trestruktur** — Tidslinje + FullscreenEditor er
+   separate state-maskiner (`saved|typing|saving|error`), persistingRef
+   forhindrer overlappende PATCH.
+3. **«Spør Mayo» RAG** — grounded svar: ChromaDB-matches + Claude-svar
+   med 60s timeout-handling, fallback til lokale deterministiske
+   innsikter hvis remote feiler.
+
+## Risiko / forbedringspotensiale
+
+**1. 🔴 BLOCKER — XSS-vektor i Psykolog.jsx (linje 134, 454, 471)**
+   `marked.parse()` brukes direkte i `dangerouslySetInnerHTML` uten
+   sanitizing. Hvis vault-fil eller Claude-svar inneholder rå HTML,
+   kjøres det. **Fix:** `dompurify` wrapper rundt marked.parse(). Est: 15 min.
+
+**2. ⚠️ ARIA-mangel på 1019-linjes Graph.jsx**
+   SVG-nodes/edges har ingen `role="button"` eller `aria-label`. Screen-
+   readers får ingen kontekst. Tidslinje har 1 aria-label. Est: 45 min.
+
+**3. ⚠️ Voice-opplasting timeout udokumentert (Tidslinje.jsx:164-184)**
+   `handleStop` setter `voiceBusy=true` uten timeout. Hvis transcribe
+   henger i 30s+ stillhet, ingen UI-tilbakemelding. Est: 30 min.
+
+**4. ⚠️ `className="private"` er KUN visuell maskering (Oversikt.jsx:17,146)**
+   Innholdet ligger fullt i DOM — debugger kan lese alt. Ikke
+   sikkerhetsmekanisme. Hvis ekte data skal skjules → backend-rendering
+   eller end-to-end-kryptering.
+
+**5. ↘ Race i FullscreenEditor (FullscreenEditor.jsx:41-66)**
+   `currentEntryId` + `idRef` synkroniseres ikke før persist() returnerer.
+   Rask entry-bytte kan PATCH'e feil ID. Fix: useEffect-cleanup som
+   avbryter pending PATCH ved unmount/prop-endring.
+
+**6. ↘ Duplikat SOURCE_COLOR (Graph.jsx:32-38 vs lib/journal.js)**
+   Begge steder definerer source-styling. Ny source = manuell sync.
+   Fix: trekk til journal.js som eksport.
+
+## Prioritert neste-steg
+
+1. **[BLOCKER]** Sanitize marked.parse — `dompurify` (15 min)
+2. **[HIGH]** ARIA på Graph.jsx nodes + keyboard-nav (45 min)
+3. **[MED]** Voice timeout + countdown (30 min)
+4. **[MED]** Refactor SOURCE_COLOR (20 min)
+5. **[LOW]** localStorage fallback for Graph-filtre (25 min)
+
+**Estimat: ~2.5 timer total for hele suiten.**
+
+**Konklusjon:** /brain er kraftig og godt bygget — hovedrisikoen er
+XSS via marked-parsing + ARIA-mangel. Resten er optimisering.
+
+---
+
+# HANDOVER_RESULT — /kalender etter gcal-pull (2026-06-18)
+
+Memo §1: «Ny gcal-pull endrer hva som vises der, men ingen visuell
+verifisering.»
+
+## Hva gjør gcal-pull?
+
+`modules/calendar/gcal_pull.py` poller Google Calendar (privat + Obs BYGG)
+via syncToken (kun endringer siden sist), mapper events tilbake til
+`item` og `meeting` ved oppslag på
+`extendedProperties.private.mayo_item_id / mayo_meeting_id`. Fallback
+ved manglende ext-properties: oppslag på `gcal_event_id`, re-stempel
+ext, sett `gcal_synced_at`.
+
+## Felter / tabeller den skriver til
+
+**`item`** (007_item_gcal.sql):
+  - `title` (strip ✓-prefiks), `scheduled_at`, `gcal_calendar_id`,
+    `gcal_synced_at`. SQL i gcal_pull.py:212–223.
+
+**`meeting`** (013_meeting_gcal.sql):
+  - `title`, `scheduled_at`, `gcal_calendar_id`, `gcal_synced_at`.
+
+Cancellation-håndtering: nullstiller `gcal_event_id` (linjer 140–159).
+
+## ⚠️ KRITISK gap: SPA leser fra annen tabell
+
+`mobile/pages/PageKalender.jsx:286-309` henter fra `/api/db/calendar`
+som leser `calendar_event`-tabellen (db_api/calendar_module.py:72-85):
+
+```sql
+SELECT id, source_calendar, title, start_at, end_at, all_day, location,
+       description FROM calendar_event WHERE user_id=$1 AND start_at BETWEEN $2 AND $3
+```
+
+**Men gcal_pull skriver til `item` + `meeting` — IKKE `calendar_event`.**
+
+Pull-data til item-felt vises altså ikke direkte i kalender-UI med mindre
+det finnes en synker mellom `item.scheduled_at` → `calendar_event`. Må
+verifiseres at en sånn projeksjon finnes (eller at /api/db/calendar
+unioner alle tre tabellene). Hvis ikke: UI-skille mellom kalender og
+livsplan/obs-bygg er reelt — pull oppdaterer kun task-listen, ikke
+kalender-renderingen.
+
+## Endepunkter for smoke-test
+
+1. `GET /api/db/calendar?days_ahead=30&days_back=30` — verifiser
+   non-empty events, start_at/end_at/title.
+2. `GET /api/db/items?state=scheduled` — verifiser `scheduled_at` ble
+   pull-oppdatert, `gcal_synced_at IS NOT NULL`.
+3. `GET /api/db/items/{item_id}` — verifiser `gcal_event_id`,
+   `gcal_calendar_id`, `gcal_synced_at` finnes.
+
+## Topp-edge-cases som kan kræsje pull-loopen
+
+**A) Timezone / malformed dateTime (gcal_pull.py:81-96)**
+   `_parse_event_time()` returnerer None silent ved malformed input →
+   `scheduled_at=NULL` → item «stille tap» i kalender-UI.
+
+**B) Duplikat gcal_event_id (007_item_gcal.sql:16)**
+   `idx_item_gcal` er ikke UNIQUE. To items kan peke på samme event-ID
+   → fallback-lookup returnerer kun den første → sletting i Google
+   etterlater zombi-items med null `gcal_event_id`.
+
+**C) Kalender-flytt + ext-stripping (gcal_pull.py:299-308)**
+   Hvis bruker flytter event mens pull-sweep kjører, Google mister ext-
+   properties → fallback til gcal_event_id-oppslag. Hvis bruker
+   samtidig redigerer item-tittel lokalt: implisitt konflikt
+   (`gcal_synced_at` verner kun app→GCal, ikke fullstendig motsatt vei).
+
+**D) SyncToken >30 dager (gcal_pull.py:127-129)**
+   Google 410 → rekursivt initial-sync på siste 30 dager. Hvis
+   `mayo-gcal-pull.sh` har ligget nede en måned, kan re-fetch skape
+   duplikater hvis dedup-invariantene ikke holder. settings_kv lagrer
+   token — hvis den slettes manuelt, samme risiko.
+
+## Anbefalinger
+
+1. **[HIGH]** Verifiser at `calendar_event`-tabellen unioneres med
+   item/meeting i `/api/db/calendar`, ellers pull-data ikke vises i UI.
+2. **[MED]** Vurder UNIQUE-index på `(user_id, gcal_event_id)` for å
+   forhindre zombi-duplikater.
+3. **[MED]** Eksplisitt logging hvis `_parse_event_time` returnerer
+   None — i dag taper du items uten loud signal.
+4. **[LOW]** Cron-vakthund: alert hvis sist vellykket pull >24t siden.
+
+---
+
+# HANDOVER_RESULT — /tasks task-IA-konsolidering (2026-06-18)
+
+Memo §1: «Fire steder med task-konsept — vurder task-IA-konsolidering:
+én master-tabell (item antakelig), én lese-projeksjon (/tasks/unified),
+én UI per kontekst.»
+
+## TILSTAND: 5 task-flater (4 + duplikat)
+
+| Flate | Route | Komp | Datakilde |
+|---|---|---|---|
+| Tasks (desktop) | `/tasks` | `routes/Tasks.jsx` (36KB) | `crm_task` |
+| Livsplan v1.2 | `/livsplan` | `PageLivsplanV12` | `item` |
+| Obs BYGG oppgaver | `/obs-bygg/oppgaver` | `MeetingActionItems.jsx` | `meeting_action_item` |
+| Kalender tasks | `/calendar/tasks` | **samme `Tasks.jsx`** | `crm_task` |
+| Tasks mobil | `/tasks` (mobil) | `PageTasks.jsx` (100KB **verbatim port**) | `crm_task` |
+
+**Tre parallelle tabeller** med ulike skjemaer + ~100KB duplikat-kode
+mellom `Tasks.jsx` og `PageTasks.jsx`.
+
+## KRITISK FUNN: /api/db/tasks/unified eksisterer allerede, men brukes IKKE
+
+`tasks_module.py:192-301` har endepunkt som unioner `crm_task` +
+`meeting_action_item` + `reminder` med `source`-felt. Søk etter
+`/tasks/unified` i SPA: **null treff**. Backend-projeksjon ligger
+klar, frontend forblir fragmentert.
+
+## Lekkasje / inkonsistens
+
+1. **Livsplan ↔ Obs oppgaver: NULL kobling.** Kryss av i /livsplan
+   oppdaterer `item.state='done'`, ikke `meeting_action_item`. Samme
+   oppgave kan stå som åpen i obs-flaten i evighet.
+2. **Tasks ↔ Obs: delvis koblet.** `meeting_action_item.task_id` kan
+   peke til `crm_task`, men fylles IKKE konsekvent.
+3. **Apple Reminders-sync** kobler kun `crm_task.reminder_id` ↔ Apple.
+   Migrasjon vekk fra `crm_task` MÅ flytte sync-logikken.
+
+## Konsolideringsforslag (5 faser, ~10–12 timer)
+
+**Fase 1 (4–5t — anbefalt nå):**
+- Erkjenn `item` som master (mest moden, 26 felt, kompleks IA).
+- Legg til `item.assigned_to: str | null` (matcher `action_item.assignee`).
+- Migrer `meeting_action_item` → `item` med `source='meeting'` +
+  `origin_ref=meeting_id`.
+- Oppdater `/obs-bygg/oppgaver` til å lese fra `/api/db/items?source=meeting`
+  i stedet for `/action-items`.
+- Valider at Apple Reminders-sync fortsatt virker.
+
+**Fase 2–5 (senere, ~6–8t):**
+- Migrer `crm_task` → `item` med `source='task'`. RISKY pga Apple sync.
+- Aktiver unified read-projection i alle UI-er.
+- Slett duplikat-komponenter (`PageTasks.jsx` ↔ `Tasks.jsx`).
+- Slett legacy-tabeller.
+
+## Risikoer
+
+**Høy:**
+- `meeting_action_item.assignee` er string (navn), `item` har ingen
+  `assigned_to` — krever migrasjon.
+- Apple Reminders-sync er knyttet til `crm_task.reminder_id`. Hvis du
+  migrerer uten omhug → mister Apple-sync.
+
+**Moderat:**
+- `/livsplan` og `/obs-bygg` kan begge vise samme item hvis det har
+  `track='jobb'` + `source='meeting'`. Strikt konvensjon:
+  livsplan = privat, obs = jobb.
+
+**Lav:**
+- Undertasks: `item.parent_id` finnes, `meeting_action_item` har ikke
+  undertasks → no issue.
+
+## Anbefaling
+
+**Ja, konsolider — start med Fase 1 (~4–5t):**
+1. `assigned_to` på `item`
+2. Migrer `meeting_action_item` → `item` (data-migrering 017_consolidate_tasks.sql)
+3. Re-pek frontend `/obs-bygg/oppgaver`
+4. Valider Apple Reminders-sync intakt
+
+Deretter (separat sesjon) vurder Fase 2–5 med spesielt fokus på
+`crm_task` → `item` (Apple sync er kritisk og bryter lett).
