@@ -50,13 +50,13 @@ Mayo aktiverer det.
   reminders).
 - Smoke 14/14 pass.
 
-### Fase 4 — IKKE GJORT (krever UI-valg)
-Auditen identifiserte ~100KB duplikat mellom:
-- `/tasks` → `PageTasks.jsx` (441l, mobil-redesign, lazy)
-- `/calendar/tasks` → `Tasks.jsx` (814l, gammel desktop)
+### Fase 4 — Slett Tasks.jsx duplikat (`7865bb4`) ✅
+Mayo valgte A: PageTasks (mobil-redesign på /tasks) som SOT.
+- `src/routes/Tasks.jsx` slettet (-814 linjer)
+- `App.jsx`: Tasks-import fjernet, `/calendar/tasks` → `<Navigate to="/tasks" replace />`
+- `CalendarLayout.jsx`: TASKS-tab fjernet fra TABS
 
-Begge er aktive ruter. Sletting krever Mayo's valg om hvilken som beholdes.
-Flagget som «trenger UI-design-beslutning».
+**Bundle**: main 594 KB → 572 KB (-22 KB). Smoke 14/14 pass.
 
 ### Fase 5 — IKKE GJORT (for risikabelt)
 `meeting_action_item` og `crm_task` beholdes som arkiv med
