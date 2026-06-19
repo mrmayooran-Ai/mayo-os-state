@@ -4,9 +4,53 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-19 13:15 · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.24 åpne spor
+**Sist oppdatert:** 2026-06-19 13:45 · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.25 Tasks IA Fase 1 ferdig
 
-## 🎯 Nyeste (2026-06-19 13:15) — Åpne spor fra reviews (`2300eb1` + `415de89` + `3b063df`)
+## 🎯 Nyeste (2026-06-19 13:45) — Tasks IA Fase 1 Steg 2–4 (`dbdbb56` + `e9f3ca1`)
+
+**Trigger:** Mayo: "kjør Steg 2–4". Fase 1 av konsolideringen som auditen
+anbefalte (4–5t). Snapshot tatt: `~/backups/manual/pre-tasks-ia-20260619-1140.sql`.
+
+### Steg 2 — Datamigrasjon (`dbdbb56`)
+Migration 018 flyttet alle 38 `meeting_action_item`-rader til `item`-tabellen
+med `source='meeting'`, `track='jobb'`, beholdt `kanban_lane` direkte. Mapping:
+text→title, assignee→assigned_to, due_date→due_at (Oslo tz), status→state,
+meeting_id→origin_ref::text.
+
+**IKKE-DESTRUKTIV**: meeting_action_item-tabellen er beholdt som arkiv med ny
+`migrated_to_item_id`-peker. Migrasjonen har innebygd guard som ROLLBACK'er
+hvis noen rad ikke kunne mappes. Resultat: 38/38 migrert, 16 assigned_to satt.
+
+### Steg 3 — `/action-items` proxy (`e9f3ca1`)
+SPA-koden er **uendret** — `_item_to_action_item()` mapper item-skjemaet
+tilbake til action_item-formatet. GET filtrerer på `source IN ('meeting',
+'voice-journal')`. PATCH oversetter status→state med completed_at, dueDate
+til timestamp med Oslo-tz, behandler null-felter via `exclude_unset`.
+DELETE er nå soft-delete (item.deleted_at).
+
+Voice-journal-action_items skrives nå direkte til `item` istedenfor
+`meeting_action_item` — proxy plukker dem opp via voice-journal-source.
+
+### Steg 4 — Apple Reminders-sync intakt ✅
+crm_task (88 rader) og reminder-tabeller er uberørt. TASK_REMINDER_SYNC=1
+fortsatt aktivt. Ingen mister Apple-sync siden vi kun har konsolidert
+meeting_action_item — som aldri var Apple-synket.
+
+### Verifisert
+- E2E: PATCH status=done/open, kanban_lane, soft-delete — alle round-trip OK.
+- Smoke 14/14 pass (inkl. #11 obs-tasks-kanban som verifiserer at SPA
+  fortsatt rendrer Brio-kanban-tavla mot proxy-en).
+- assignee_stats: 10 personer med åpne actions, fungerer som før.
+
+### Senere (Fase 2–5, ~6–8t — IKKE startet)
+- Migrere `crm_task` → `item` (RISKY pga Apple sync).
+- Aktivere `/tasks/unified` read-projection i alle UI-er.
+- Slette `PageTasks.jsx` ↔ `Tasks.jsx` duplikat (~100KB).
+- Slette legacy-tabeller (meeting_action_item, crm_task) når trygt.
+
+---
+
+## 🎯 (2026-06-19 13:15) — Åpne spor fra reviews (`2300eb1` + `415de89` + `3b063df`)
 
 **Trigger:** Mayo: "ta åpne sporene du nevner". De tre sporene fra forrige
 oppsummering: kalender-union, tasks-IA Fase 1, høyrepanel-duplikasjoner.
