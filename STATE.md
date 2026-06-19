@@ -58,6 +58,35 @@ Mayo valgte A: PageTasks (mobil-redesign på /tasks) som SOT.
 
 **Bundle**: main 594 KB → 572 KB (-22 KB). Smoke 14/14 pass.
 
+### Fase 5 — DROP legacy-tabeller (2026-06-19 18:42) ✅
+Migration 021 dropper `crm_task` + `meeting_action_item`. All task-data
+(126 rader) lever videre i `item` via source-flagg.
+
+**Refaktor før drop** (alle skrivere/lesere flyttet til item):
+- `meeting_module._insert_action_items` → INSERT item source='meeting'
+- `meeting_module._create_tasks_from_action_items` → no-op (duplikat fjernet)
+- `meeting_module.meeting_assignees` → SELECT item source='meeting'
+- `server.py /voice/task` → INSERT item source='task' track='privat'
+- `server.py /action-items/backfill` → INSERT item source='meeting'
+- `goals_module` task-stats → SELECT item source='task' AND goal_id
+- `modules/vault/weekly_digest` → SELECT item source='meeting'
+- `modules/reminders/task_sync.enabled()` → hardcoded False (Apple-sync må
+  re-implementeres på item-tabellen før reaktivering — ikke i bruk i dag)
+
+**Dead code slettet:**
+- `db_api/item_mirror.py` (crm_task → item speil)
+- `item_logic.crm_task_to_item_fields` + 4 tester
+
+**Eksisterende bug oppdaget (ikke fikset):** `/meeting/{id}` matcher før
+`/meeting/assignees` så SPA's GET /meeting/assignees feiler med UUID-parse.
+Eksisterende fra før Fase 5. TODO.
+
+Snapshot: `~/backups/manual/pre-drop-legacy-20260619-1828.sql` (45 KB).
+E2E: alle endepunkter grønne, smoke 14/14.
+
+**Notabene:** `reminder.crm_task_id`-kolonnen står som dødt felt — kan
+ryddes i senere migrasjon.
+
 ### Fase 5 — IKKE GJORT (for risikabelt)
 `meeting_action_item` og `crm_task` beholdes som arkiv med
 `migrated_to_item_id`-pekere. Hvis noe går galt:
