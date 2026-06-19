@@ -4,9 +4,35 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-18 (kveld) · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** konsolideringssprint — 10/10 memo-punkter ferdig
+**Sist oppdatert:** 2026-06-19 12:54 · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** ARIA-polish addendum
 
-## 🎯 Nyeste (2026-06-18, kveld) — Konsolideringssprint fra REVIEW-2026-06-17 (10 punkter)
+## 🎯 Nyeste (2026-06-19 12:54) — ARIA-polish addendum til memo #8 (`2f187b7`)
+
+**Trigger:** Mayo: "ta neste oppgave i listen" — i kveld var #8 ARIA allerede
+gjort i `4ecf00a` (basale roles + labels). Min sesjon gikk videre og adresserte
+restenede anti-patterns + flere primitiver som ikke var dekket.
+
+**Fronted (`2f187b7`):**
+- **Anti-pattern fikset i ItemLine**: tidligere `aria-label=it.title` på wrapperen
+  overstyrte all descendant-tekst for skjermleser. Ny `buildItemAria()` gir rik
+  label: tittel · område · prioritet · frist · energi · undertask-progresjon.
+- `PriDots` → `aria-hidden` (info finnes i parent-label, ingen dobbeltlesning).
+- `AreaTag` button-versjon → `aria-label="Filtrer på område X"`.
+- `SensLock` → `role="img"` + `aria-label="Sensitiv oppgave — privat"`.
+- `SubtaskRow` priority-button → menneskelig label (ingen/lav/middels/høy)
+  istedenfor "0 av 3".
+- `SmartTiles` → `aria-label="I dag: 3 oppgaver — krever oppmerksomhet"`.
+
+**Bundle:** PageLivsplanV12 179→181 KB (+1.6 KB ARIA-strings), main uendret
+594 KB. **Smoke 14/14 pass** (med ny test #12, #13, #14 lagt av kveldssesjon).
+
+---
+
+## 🎯 (2026-06-18, kveld) — Konsolideringssprint fra REVIEW-2026-06-17 (10 punkter)
+
+**Versjon:** konsolideringssprint — 10/10 memo-punkter ferdig
+
+## 🎯 (2026-06-18, kveld) — Konsolideringssprint fra REVIEW-2026-06-17 (10 punkter)
 
 **Trigger:** Mayo: «ta alle punktene stegvis» — alle resterende punkter
 fra prio-listen + TL;DR-konsolideringspunkter.
