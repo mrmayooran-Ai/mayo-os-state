@@ -4,9 +4,43 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-19 12:54 · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** ARIA-polish addendum
+**Sist oppdatert:** 2026-06-19 13:15 · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.24 åpne spor
 
-## 🎯 Nyeste (2026-06-19 12:54) — ARIA-polish addendum til memo #8 (`2f187b7`)
+## 🎯 Nyeste (2026-06-19 13:15) — Åpne spor fra reviews (`2300eb1` + `415de89` + `3b063df`)
+
+**Trigger:** Mayo: "ta åpne sporene du nevner". De tre sporene fra forrige
+oppsummering: kalender-union, tasks-IA Fase 1, høyrepanel-duplikasjoner.
+
+### Spor #1 — Kalender-union (`2300eb1`) ✅
+Bekreftet gap: 7 meetings + 5 items siste 30 dager hadde scheduled_at men
+manglet gcal_event_id og var derfor usynlige i SPA-kalender. GET /calendar
+unioner nå inn `meeting` (source='_local_meeting') og `item`
+(source='_local_item') med scheduled_at uten gcal_event_id. E2E: 46 events
+i 14-d vindu = 45 Google + 1 tidligere usynlig lokalt meeting.
+
+### Spor #2 — Tasks-IA Fase 1, Steg 1 (`415de89`) ⚠ delvis
+Lagt `item.assigned_to TEXT` (migrasjon 017) + ItemCreate/Patch + EDITABLE_
+FIELDS + _COLS. E2E: PATCH assigned_to round-trip OK, 21/21 item_logic-
+tester pass.
+
+**Steg 2–4 IKKE gjort** (krever Mayo-godkjenning — ikke-reversibel uten
+backup):
+- Steg 2: data-migrering `meeting_action_item` → `item` med `source='meeting'`
+- Steg 3: re-pek frontend /obs-bygg/oppgaver fra `/action-items` til
+  `/items?source=meeting`
+- Steg 4: verifiser Apple Reminders-sync er intakt
+
+### Spor #3 — Høyrepanel-duplikat (`3b063df`) ✅
+HANDOVER_RESULT 2026-06-18 flagget «I dag: 5» vises i både RightSummary KPI-
+rad og SmartTiles i sentrum på desktop ≥1024px. Wrappa SmartTiles i
+`.lp-smarttiles-center` med `@media (min-width: 1024px) { display: none }`.
+Samme breakpoint som RightPanel sin visibility-grense.
+
+**Smoke:** 14/14 pass etter alle endringer.
+
+---
+
+## 🎯 (2026-06-19 12:54) — ARIA-polish addendum til memo #8 (`2f187b7`)
 
 **Trigger:** Mayo: "ta neste oppgave i listen" — i kveld var #8 ARIA allerede
 gjort i `4ecf00a` (basale roles + labels). Min sesjon gikk videre og adresserte
