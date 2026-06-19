@@ -42,7 +42,7 @@ priority returnerte korrekt diff-rad i audit_log).
 
 | Review | Hovedfunn | Toppanbefaling |
 |---|---|---|
-| `/brain` | 🔴 XSS-vektor i Psykolog.jsx (marked.parse + dangerouslySetInnerHTML) | dompurify-wrap — 15 min |
+| `/brain` | ~~🔴 XSS-vektor i Psykolog.jsx~~ ✅ **FIKSET** `0e44bb3` — DOMPurify-wrap rundt marked.parse | — |
 | `/kalender` | SPA leser fra `calendar_event`-tabell, gcal-pull skriver til `item`+`meeting` → mulig UI-gap | verifiser union i `/api/db/calendar` |
 | `/tasks` IA | `/api/db/tasks/unified` finnes i backend, ikke brukt i SPA. 4+1 task-flater + ~100KB duplikat | Fase 1: assigned_to + migrer meeting_action_item → item (~4–5t) |
 
