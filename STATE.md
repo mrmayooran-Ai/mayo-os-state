@@ -4,9 +4,70 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-19 13:45 · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.25 Tasks IA Fase 1 ferdig
+**Sist oppdatert:** 2026-06-19 14:30 · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.26 Tasks IA Fase 2-3
 
-## 🎯 Nyeste (2026-06-19 13:45) — Tasks IA Fase 1 Steg 2–4 (`dbdbb56` + `e9f3ca1`)
+## 🎯 Nyeste (2026-06-19 14:30) — Tasks IA Fase 2-3 (`b08b22c` + `96788f6`)
+
+**Trigger:** Mayo: "kjør Fase 2-5". Snapshot tatt:
+`~/backups/manual/pre-fase2-5-20260619-1157.sql` (97 KB).
+
+### Fase 2 — `crm_task` → `item` (`b08b22c`)
+**Auditen flagget «RISKY pga Apple sync»** men prod-tilstand viser at
+Apple sync IKKE er i aktiv bruk: 0 av 88 crm_tasks har `reminder_id` eller
+`synced_at`. Risiko derfor mye lavere enn antatt.
+
+Migrasjoner:
+- **019**: utvider item-tabellen med `reminder_id BIGINT`, `sync_origin
+  TEXT`, `synced_at TIMESTAMPTZ`, `contact_id UUID`, `goal_id INTEGER` +
+  FK-er + indexer. Apple-sync-felter beholdes så fremtidig aktivering
+  ikke trenger nytt skjema-skifte.
+- **020**: idempotent flytting av alle 88 crm_task-rader til `item` med
+  `source='task'`, `track='privat'`. Status: inbox/open→inbox, today→
+  today, done→done, dropped→dropped. tags, position, reminder_id,
+  contact_id, goal_id, created_at, updated_at bevart.
+
+**IKKE-DESTRUKTIV**: crm_task beholdt som arkiv med `migrated_to_item_id`-
+peker. Innebygd guard ROLLBACK'er ved feilet mapping. Resultat: 88/88
+migrert.
+
+### Fase 3 — `/tasks` + `/tasks/unified` proxy (`96788f6`)
+SPA-koden uendret — `_item_to_task()` mapper item-skjema tilbake til
+crm_task-format. Endringer i `tasks_module.py`:
+- GET/POST/PATCH/DELETE /tasks: proxy mot `item WHERE source='task'`.
+  Status-mapping ('open'-alias→inbox).
+- POST /tasks/quick (iOS Shortcut): INSERT direkte til item.
+- GET /tasks/unified: én query mot `item WHERE source IN ('task','meeting',
+  'voice-journal')` JOIN meeting. Apple-reminder-del uendret.
+
+bg_task_sync no-op'er trygt — task_sync.py refererer til crm_task som
+forblir arkiv. Apple-sync flyttes til item-tabellen i fremtidig fase når
+Mayo aktiverer det.
+
+### Verifisert
+- /tasks → 50 items (default limit), filter status=inbox→62 items.
+- PATCH status round-trip OK (today/inbox).
+- /tasks/unified?limit=300 → **105 totalt** (62 task + 38 meeting + 5
+  reminders).
+- Smoke 14/14 pass.
+
+### Fase 4 — IKKE GJORT (krever UI-valg)
+Auditen identifiserte ~100KB duplikat mellom:
+- `/tasks` → `PageTasks.jsx` (441l, mobil-redesign, lazy)
+- `/calendar/tasks` → `Tasks.jsx` (814l, gammel desktop)
+
+Begge er aktive ruter. Sletting krever Mayo's valg om hvilken som beholdes.
+Flagget som «trenger UI-design-beslutning».
+
+### Fase 5 — IKKE GJORT (for risikabelt)
+`meeting_action_item` og `crm_task` beholdes som arkiv med
+`migrated_to_item_id`-pekere. Hvis noe går galt:
+`UPDATE item SET deleted_at=now() WHERE source IN ('task','meeting',
+'voice-journal')` reverserer alt. Sletting kan vurderes senere når
+proxy-laget er bekreftet stabilt over flere uker.
+
+---
+
+## 🎯 (2026-06-19 13:45) — Tasks IA Fase 1 Steg 2–4 (`dbdbb56` + `e9f3ca1`)
 
 **Trigger:** Mayo: "kjør Steg 2–4". Fase 1 av konsolideringen som auditen
 anbefalte (4–5t). Snapshot tatt: `~/backups/manual/pre-tasks-ia-20260619-1140.sql`.
