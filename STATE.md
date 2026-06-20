@@ -77,9 +77,11 @@ Migration 021 dropper `crm_task` + `meeting_action_item`. All task-data
 - `db_api/item_mirror.py` (crm_task → item speil)
 - `item_logic.crm_task_to_item_fields` + 4 tester
 
-**Eksisterende bug oppdaget (ikke fikset):** `/meeting/{id}` matcher før
-`/meeting/assignees` så SPA's GET /meeting/assignees feiler med UUID-parse.
-Eksisterende fra før Fase 5. TODO.
+**Eksisterende bug oppdaget — FIKSET 2026-06-20 (`08ff902`):** rute-
+rekkefølge `/meeting/{id}` deklarert før `/meeting/assignees` →
+'assignees' tolket som UUID → 500. Flyttet `/meeting/assignees` +
+`/meeting/entities` til FØR `/meeting/{id}` med kommentar over som
+forklarer hvorfor. E2E: 10 unike assignees returneres nå.
 
 Snapshot: `~/backups/manual/pre-drop-legacy-20260619-1828.sql` (45 KB).
 E2E: alle endepunkter grønne, smoke 14/14.
