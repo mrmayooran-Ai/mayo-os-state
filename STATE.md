@@ -83,6 +83,43 @@ rekkefølge `/meeting/{id}` deklarert før `/meeting/assignees` →
 `/meeting/entities` til FØR `/meeting/{id}` med kommentar over som
 forklarer hvorfor. E2E: 10 unike assignees returneres nå.
 
+---
+
+## 🎯 2026-06-20 — Apple Reminders → mayo_sov → GCal speiling (`2068064` + `b65b254`)
+
+**Trigger:** Mayo: «vil at taskene skal speile til Google Calendar ut i
+fra frist på tasken. Bruker Apple hurtigknapp for å opprette task i Apple
+Reminders. Bruker primært Google Calendar appen for oversikt. Men huk —
+må ha dette i livsplanlegger.»
+
+**Endring:**
+- `/reminders/bulk-sync` speiler nå hver Apple Reminder til item-tabellen
+  (`source='reminder'`, `track='privat'`). Idempotent via `origin_ref=
+  reminder.id`. Slett-håndtering: når reminder forsvinner fra Apple,
+  soft-delete tilsvarende item.
+- Migration 022 backfiller 6 eksisterende reminders.
+- `/tasks/unified` leser reminders via item (source='reminder')
+  istedenfor direkte FROM reminder — unngår dobling.
+- `PageTasks.jsx` leser nå `/tasks/unified` så Apple Reminders dukker opp
+  i I dag/Forfalt-bucketene. moveTask bruker `/items/{id}` PATCH.
+- JOIN-mønster bytt fra `m.id = i.origin_ref::uuid` til `m.id::text =
+  i.origin_ref` så reminder-items (bigint→text origin_ref) ikke trigger
+  UUID-cast-feil.
+
+**Automatisk GCal-sync:** `gcal_sync.py` finner alle items med due_at
+uten gcal_event_id og pusher dem. Cron-frekvens: 3 min. Mayo's reminders
+dukker opp i Google Calendar innen 3 min etter Shortcut-trigger.
+
+**Test-skript:** `infra/scripts/test-reminder-sync.sh` verifiserer hele
+kjeden ende-til-ende — 5/5 pass.
+
+**For å aktivere i prod**: Mayo må konfigurere iOS Shortcut til POST mot
+`db.mayooran.com/reminders/bulk-sync` med `X-Shortcut-Token`-header
+(`SHORTCUTS_TOKEN` fra .env). Shortcut må sende ALLE reminders i hver run
+(Apple's «I dag» er filter, ikke separat liste).
+
+**Smoke 14/14 pass.**
+
 Snapshot: `~/backups/manual/pre-drop-legacy-20260619-1828.sql` (45 KB).
 E2E: alle endepunkter grønne, smoke 14/14.
 
