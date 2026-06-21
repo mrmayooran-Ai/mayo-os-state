@@ -85,6 +85,38 @@ forklarer hvorfor. E2E: 10 unike assignees returneres nå.
 
 ---
 
+## 🎯 2026-06-21 — Security-hardening på login (`517fcb2` + `f4623c0`)
+
+**Trigger:** Mayo: «ekstrem sikkerhet — har helse og journal her».
+Sikkerhetsvurdering avslørte 5 kritiske/høye funn på login-flaten.
+Implementert i ett bundle:
+
+1. **Tvunget 2FA**: krever BÅDE passord OG OTP. Tidligere enten-eller.
+2. **Rate limit**: 5 feilforsøk/IP/5min → 429. Python-implementasjon
+   (ikke nginx) siden db.mayooran.com går CF-tunnel → db-api direkte.
+3. **Session-TTL ned til 14 dager** (fra 90).
+4. **Audit-log på alle login-forsøk** til `login_attempt`-tabellen
+   med IP, user-agent, country, method, success, reason.
+5. **Web-push ved vellykket login** «🔓 Ny innlogging fra <land>, <enhet>».
+
+**Frontend**: Login.jsx viser nå BÅDE passord OG OTP-felt samtidig.
+Enter på passord → fokus til OTP. Feil → tøm OTP, behold passord.
+Status-strip: «BCRYPT-12 + TOTP-6 · PG-SESSION 14D · RATE-LIMIT 5/5MIN».
+
+**Bypass**: `LOGIN_BYPASS_TOKEN` i .env + cookie `mayo_bypass` lar Mayo
+omgå rate limit hvis han blir låst ute — settes via SSH.
+
+**Smoke 14/14 pass.**
+
+**Gjenstår (krever Mayo)**:
+- chat.mayooran.com bak CF-tunnel (DNS-endring)
+- Cloudflare Access foran SPA (CF dashboard)
+- fail2ban-filter for /pyauth/login (interaktiv sudo)
+- Token-rotasjon (oppdaterer Shortcuts)
+- Bitwarden vault-entry med TOTP + recovery-instruks
+
+---
+
 ## 🎯 2026-06-20 — Apple Reminders → mayo_sov → GCal speiling (`2068064` + `b65b254`)
 
 **Trigger:** Mayo: «vil at taskene skal speile til Google Calendar ut i
