@@ -111,9 +111,17 @@ omgå rate limit hvis han blir låst ute — settes via SSH.
 **Gjenstår (krever Mayo)**:
 - chat.mayooran.com bak CF-tunnel (DNS-endring)
 - Cloudflare Access foran SPA (CF dashboard)
-- fail2ban-filter for /pyauth/login (interaktiv sudo)
 - Token-rotasjon (oppdaterer Shortcuts)
-- Bitwarden vault-entry med TOTP + recovery-instruks
+- Bitwarden vault-entry med TOTP + recovery-instruks (bruk **bitwarden.eu**)
+
+**Arkitektur-funn (fail2ban)**: fail2ban er feil verktøy for vårt setup
+fordi CF-tunnel skjuler angriperens IP fra iptables. Erstattet med
+progressive Python-rate-limit (`f026b38`):
+- Tier 1: 5 forsøk / 5 min
+- Tier 2: 15 forsøk / 1 time
+- Tier 3: 40 forsøk / 24 timer
+
+Strengeste tier rapporteres i 429-melding + audit-log.
 
 ---
 
