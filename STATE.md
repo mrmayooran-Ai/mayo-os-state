@@ -4,7 +4,52 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-22 14:15 · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.27 Livsplanlegger lyd-upload
+**Sist oppdatert:** 2026-06-22 23:30 · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.28 Livsplanlegger UX-rewrite
+
+## 🎯 Nyeste (2026-06-22 23:30) — Livsplan UX-rewrite (`90df59c` + `95a3cec` + `d9de5ec`)
+
+**Mandat:** Mayo: «ta en re-vurdering av hele UX i livsplanlegger ... det
+er den jeg kommer til å bruke aller mest». «ikke X øverst i skjerm som
+jeg må lete etter». «du har 6 timer, kjør på».
+
+**Audit:** `docs/superpowers/reviews/LIVSPLAN-UX-2026-06-22.md` (17 funn,
+benchmark mot iOS HIG / Linear / Things 3 / Baymard).
+
+**Implementert (alle iOS-native gesture-mønstre):**
+
+1. **SheetHost rewrite** — drag handle øverst er primær lukk-affordance.
+   Swipe-down lukker. Snap points medium (60%) ↔ large (92%). X-knapp
+   fjernet helt fra sheet-header.
+
+2. **DesktopItemModal** — løser Mayo's konkrete klage «tekst kutter».
+   ItemDetail rendres som sentral modal (600 px) istedenfor trang
+   RightPanel (320 px). ESC + backdrop + ×.
+
+3. **Inline tittel-redigering** — auto-grow textarea med `overflowWrap:
+   anywhere`. Lange titler wrapper naturlig, kuttes aldri.
+
+4. **SwipeableItem** — iOS Mail-mønster. Drag høyre → «✓ Ferdig», drag
+   venstre → «🗑 Slett». Threshold 80 px med resistance + vertikal-lock.
+
+5. **useLongPress hook** — 500ms, vibrate-feedback, cancel-click-trick.
+
+6. **PullToRefresh wrapper** — pull > 70 px på toppen → onRefresh.
+
+7. **useTabSwipe** — swipe-left/right > 50 px bytter mellom nav-tabs.
+
+8. **ctx.completeItem / ctx.deleteItem** — felles handlers for swipe.
+   Optimistisk + rollback ved feil.
+
+9. **SkeletonItem** — placeholder med shimmer mens lister laster.
+
+**Smoke 15/15 pass.** Ny test #15 verifiserer at desktop ItemDetail er
+> 400 px og at tittel-textarea finnes.
+
+**Ikke gjort (utenfor 6t-budsjett, dokumentert i audit):**
+- Typografi-standardisering: 20 unike font-sizes → 7-8 stilarter.
+- Information density: konsistent spacing-skala.
+
+---
 
 ## 🎯 Nyeste (2026-06-22 14:15) — Privat lyd-opptak i Livsplanlegger (`0bedbe6` + `7fadfb8`)
 
