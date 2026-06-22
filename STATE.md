@@ -85,6 +85,33 @@ forklarer hvorfor. E2E: 10 unike assignees returneres nå.
 
 ---
 
+## 🎯 2026-06-22 — Innstillinger-side (sikkerhets-senter) (`abbcff6` + `6420c39`)
+
+**Trigger:** Mayo: «lag innstillinger-siden». Samler alle security-
+relevante kontroller på én flate.
+
+**Backend (`abbcff6`)**:
+- GET `/pyauth/login-history?limit=100` returnerer login_attempt-rader
+  + aggregerte 30d-stats (success_30d, fail_30d, unique_ips_30d, fail_24h).
+- DELETE `/pyauth/sessions` (manglet før!) tar enten `{token}` eller
+  `{token_prefix}` (8-tegn). Prefix krever EKSAKT 1 treff for å unngå
+  feil sletting. Avviser nåværende sesjon (bruk /logout).
+
+**Frontend (`6420c39`)**:
+- Ny `PageInnstillinger.jsx` mountet på `/innstillinger`:
+  · **Passkeys** — liste m/ device_label, sist brukt, iCloud-backup-flagg,
+    slett-knapp (blokker sletting av siste passkey), legg-til-knapp.
+  · **Aktive sesjoner** — current-badge, IP-prefix, last_seen, logg-ut.
+  · **Login-historikk** — KPI-kort (vellykkede/feilet/unike IPs siste 30d),
+    advarsel hvis fail_24h > 5, filter-toggle, tabell m/ IP/country/
+    method/reason.
+- PageHjem-headeren: 🛡️-knapp navigerer til /innstillinger. Rødt badge
+  hvis ingen passkey registrert.
+
+**Smoke 14/14 pass** (en flake på 08 reproduserte ikke).
+
+---
+
 ## 🎯 2026-06-21 — Security-hardening på login (`517fcb2` + `f4623c0`)
 
 **Trigger:** Mayo: «ekstrem sikkerhet — har helse og journal her».
