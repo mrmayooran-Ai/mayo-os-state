@@ -42,12 +42,26 @@ benchmark mot iOS HIG / Linear / Things 3 / Baymard).
 
 9. **SkeletonItem** — placeholder med shimmer mens lister laster.
 
-**Smoke 15/15 pass.** Ny test #15 verifiserer at desktop ItemDetail er
-> 400 px og at tittel-textarea finnes.
+**Smoke 16/16 pass.** Nye tester:
+- #15 ItemDetail er sentral modal > 400 px med tittel-textarea
+- #16 Sheet har drag handle + INGEN X i header (Mayo's eksplisitte klage)
+
+**Også:**
+- `tokens.js` har TYPE / SPACE / TOUCH tokens for fremtidig migrasjon
+- `ctx.refresh()` tilgjengelig (loadItems som named callback) klar for
+  PullToRefresh-wrapping når Mayo verifiserer gesture-konflikter er løst
+- ItemLine deaktiverer SwipeableItem når dragHandle-prop er satt (triage
+  beholder sitt eget drag-and-drop)
+- `docs/superpowers/reviews/LIVSPLAN-UX-PROVE-DETTE.md` — release-notes
+  med konkret prøv-dette-rekkefølge for Mayo når han våkner
 
 **Ikke gjort (utenfor 6t-budsjett, dokumentert i audit):**
-- Typografi-standardisering: 20 unike font-sizes → 7-8 stilarter.
-- Information density: konsistent spacing-skala.
+- Typografi-standardisering: 20 unike font-sizes → 7-8 stilarter (TYPE-
+  tokens definert, men eksisterende komponenter ikke migrert)
+- PullToRefresh-wrapping på spesifikke lister (avventer Mayo's feedback
+  på swipe-tab-konflikt-risiko)
+- useLongPress→context-menu kobling
+- Triage drag-and-drop modernisering
 
 ---
 
