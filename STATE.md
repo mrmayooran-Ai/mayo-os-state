@@ -4,9 +4,64 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-19 14:30 · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.26 Tasks IA Fase 2-3
+**Sist oppdatert:** 2026-06-22 14:15 · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.27 Livsplanlegger lyd-upload
 
-## 🎯 Nyeste (2026-06-19 14:30) — Tasks IA Fase 2-3 (`b08b22c` + `96788f6`)
+## 🎯 Nyeste (2026-06-22 14:15) — Privat lyd-opptak i Livsplanlegger (`0bedbe6` + `7fadfb8`)
+
+**Trigger:** Mayo: «trenger mulighet i mayooran.com å laste opp iphone
+lydopptak slik at whisper kan oversette transkribasjon og oppsumere…
+men dette er privat, ikke obs bygg. så må ha mulighet under
+livsplanlegger… nå hadde vi IVF møte f eks».
+
+### Hva
+🎙-knappen i Livsplanlegger-Fang-sheet er ikke lenger en stub. Tap →
+filvelger (m4a/mov/mp3/wav/webm/ogg) → upload som privat møte med full
+Whisper + Claude-pipeline. Action items lander i Livsplanlegger-inbox
+med riktig track/area, IKKE i Obs BYGG.
+
+### Backend (`0bedbe6`)
+`db_api/meeting_module.py`:
+- `/meeting/upload` aksepterer nå `is_private: bool = Form(False)` og
+  lagrer på meeting-raden ved opprettelse
+- `_insert_action_items` leser `meeting.is_private` og setter
+  `track='privat'` per item. Hvis Claude foreslår `area`, brukes det
+  (helse/familie/ivf/mayo_os/okonomi/obs_bygg). `sensitive=true` for
+  is_private eller ivf/okonomi.
+- `EXTRACTION_PROMPT` utvidet: Claude tildeler nå `area` per
+  action_item med eksplisitte definisjoner (ivf = fertilitet/klinikk/FET,
+  helse = trening/lege/blodprøve, familie = barn/Max/Priya, etc.)
+- Pipeline skipper Obsidian-vault-MD for private møter (privacy: ikke
+  speile IVF-/helse-transkripter til vault som syncer til andre enheter)
+
+### Frontend (`7fadfb8` på `feat/whoop-redesign`)
+`src/mobile/livsplan_v12/capture.jsx`:
+- Mic-stub fjernet (la inn fast tekst). Erstattet med ekte filvelger
+  (`<input type="file" accept="audio/*,...">`)
+- XHR-upload med progress (lik Obs BYGG Meetings.jsx-mønstret)
+- EventSource til `/meeting/{id}/stream` → live SSE-status:
+  "Splittet i 24 biter" → "Transkriberer 3/24…" → "Claude analyserer…"
+- På `done`-event: re-fetcher `/items` så ny inbox-rader dukker opp
+  uten side-reload. Toast: "Lyd transkribert · N oppgaver fanget"
+- Progress-overlay (lilla glasskort) under sheet-textarea — vises kun
+  under aktiv pipeline, lukkbar når ferdig
+
+### Privacy
+- Items får `sensitive=true` (blur via `t.blurSensitive` i UI)
+- `meeting_list?include_private=false` (default i Obs BYGG) filtrerer
+  hele transkriptet ut av Obs BYGG-listen — det vises kun i
+  Livsplanlegger
+- Ingen vault-MD = transkript bare i Postgres (`meeting.transcript_text`)
+
+### Test-status
+- Backend syntaks OK, db-api restartet og /health svarer
+- Form-validering verifisert med curl (401 = passerte form-parse,
+  traff auth-vegg)
+- Frontend bygget OK (Vite, ingen warnings utover eksisterende
+  chunk-size-advarsel). Bundle: `PageLivsplanV12-DKbVq94G.js` 184 KB
+- Ikke end-to-end testet (krever passkey-innlogging + faktisk audio).
+  Mayo må teste IVF-opptaket sitt.
+
+## 🎯 (2026-06-19 14:30) — Tasks IA Fase 2-3 (`b08b22c` + `96788f6`)
 
 **Trigger:** Mayo: "kjør Fase 2-5". Snapshot tatt:
 `~/backups/manual/pre-fase2-5-20260619-1157.sql` (97 KB).
