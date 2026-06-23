@@ -4,9 +4,50 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-23 · **Av:** Claude (terminal) · **Versjon:** Spør Jarvis i møter
+**Sist oppdatert:** 2026-06-23 · **Av:** Claude (terminal) · **Versjon:** Privat møte-paritet + hybrid Spør Jarvis
 
-## 🎯 Nyeste (2026-06-23) — «Spør Jarvis» Q&A per møte (BE `3de665a` + FE PR #21)
+## 🎯 Nyeste (2026-06-23) — Privat møte → Obs BYGG-paritet + hybrid Spør Jarvis (BE `a7f7eb3` + FE merget `a5f7fad`)
+
+> **Status:** FE merget til prod (`a5f7fad`, PR #22) etter planlegger-review av begge personvern-invariantene (privat lekker ikke til Obs BYGG/vault; privat→sky kun ved eksplisitt `force_cloud`). **BE `a7f7eb3` GJENSTÅR deploy:** `cd ~/mayo-ai-os && git pull origin claude/confident-noether-lpacih && ./deploy.sh` — aktiverer avkryssing (action_item `item_id`-join) + `force_cloud`. Før deploy: checkboxer deaktivert (graceful), `force_cloud` ignoreres trygt (Pydantic dropper ekstra-felt).
+
+**Trigger:** Mayo testet «Privat møte» + «Spør Jarvis»: (1) kunne ikke huke av
+oppgaver / redigere / skrive notater i privat møte (ulik den rike Obs BYGG-
+visningen), (2) ønsket hybrid — lokal Gemma som default, men eksplisitt per-
+spørsmål-valg «Svar med Claude (anonymisert)».
+
+**Backend (`mayo-ai-os`, branch `claude/confident-noether-lpacih`, commit `a7f7eb3` — PUSHET):**
+- `GET /meeting/{id}` returnerer nå `is_private` + beriker topnivå-`action_items[]`
+  med `item_id` + `done` (join mot `item`-tabellen source='meeting', origin_ref,
+  FIFO tekst-match) → UI får stabil id for avhuking. Avhuking går via eksisterende
+  `PATCH /action-items/{id}` (user_id-scoped proxy — virker likt privat/jobb).
+- `meeting_ask` tar nytt felt `force_cloud: bool = False`. Ruting:
+  ikke-privat → Claude anonymisert (uendret); privat+!force_cloud → lokal Gemma
+  (uendret default); **privat+force_cloud → anonymisert Claude** (eneste vei et
+  privat transkript når sky, kun på eksplisitt forespørsel). Raden lagres fortsatt
+  `sensitive=True` (kryptert); model-etikett = «claude-sonnet (anonymisert · sky)».
+  FAIL-CLOSED bevart.
+- ⚠️ **Backend auto-deploy AV** → krever manuell `cd ~/mayo-ai-os && ./deploy.sh`.
+  Kun AST/syntaks-verifisert, IKKE runtime-testet på VPS. Ingen ny migration.
+
+**Frontend (`mayo-os`, branch `feat/privat-mote-parity`, draft PR #22 → `feat/whoop-redesign`):**
+- Privat møte-detalj (`livsplan_v12/meetings.jsx`) GJENBRUKER nå `ObsDetail` med
+  `isPrivate={true}` istedenfor egen read-only visning (slettet). Full paritet:
+  transkript, redigerbart sammendrag, avhukbare/redigerbare oppgaver, notater,
+  reanalyse.
+- `ObsDetail` tar `isPrivate`-prop og gater ALT Obs-BYGG-spesifikt bak `!isPrivate`:
+  synk-toggle/SyncChip skjult (🔒 privat-chip + «kun Postgres» istf.), `[[wiki]]`-
+  graf-nav av, Spør Jarvis ruter på ekte `isPrivate`, privat-footer. `ActionItemRow`
+  huker av via `/action-items/{item_id}` (fallback legacy `/tasks/{id}`).
+- `AskJarvis`: ny sekundær-knapp «⚡ Svar med Claude (anonymisert)» (kun private)
+  → `force_cloud:true`, eksplisitt ☁ trade-off-note. Default «🔒 Spør» = lokal.
+  RouteBadge leser `model`-strengen → viser «☁ sky (anonymisert)» når privat→sky.
+- `npm run build` rent. `tokens.ts` urørt. Ingen nye deps. `ObsDetail` er delt
+  chunk (ingen duplisering PageObs/PageLivsplanV12).
+- ⚠️ **GJENSTÅR (Mayo/VPS):** `cd ~/mayo-ai-os && ./deploy.sh` for å aktivere
+  avhuking + hybrid-ruten. PR #22 er DRAFT (ikke merget). Til backend er deployet:
+  oppgaver vises men checkbox er disabled; force_cloud ignoreres trygt.
+
+## 🎯 (2026-06-23) — «Spør Jarvis» Q&A per møte (BE `3de665a` + FE PR #21)
 
 **Trigger:** Mayo: «Bygg Spør Jarvis inne i hvert møte — Q&A mot møtets transkript + sammendrag.»
 
