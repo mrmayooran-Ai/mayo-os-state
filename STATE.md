@@ -4,9 +4,62 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-23 11:06 · **Av:** Claude (planlegger-session) · **Versjon:** v0.29.1 søk-fiks runde 2
+**Sist oppdatert:** 2026-06-23 13:55 · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.30 OOM-fix smoke-lekkasje
 
-## 🎯 Nyeste (2026-06-23 11:06) — Søk runde 2: streng bokstavelig matcher + dedupe (merge `881fd67`)
+## 🎯 Nyeste (2026-06-23 13:55) — OOM-diagnose: chromium-lekkasje var rotårsak (`03301ae`/`af1c4a8`)
+
+**Trigger:** Mayo: «Fiks OOM-kræsj i backend-auto-deploy (db-api SIGKILL ved
+Whisper-last)». Deploy-backend.yml feilet 17. juni 11:09 med exit 137.
+
+**Diagnose (les-først):**
+- **35 chromium-prosesser** fra smoke-cron lekket (etime 5d12h) →
+  spiste 2.6 GB RAM
+- Ollama gemma3:4b spiser 4.3 GB → bare 1.6 GB tilgjengelig før cleanup
+- db-api MemoryHigh=3GB/MemoryMax=4GB, peak 3.22 GB (strupes, men kræsjer
+  hvis swap+RAM begge fulle)
+- Lazy-load Whisper var allerede aktivert (20s pre-warm-timeout, faller
+  tilbake til lazy-load)
+- Swap (4 GB) er aktivt + i fstab — overlever reboot
+
+**Spor A (lazy-load) var allerede gjort.** Rotårsak var Spor B — system-
+press fra smoke-lekkasjen.
+
+**Fiks:**
+1. Drepte alle lekkede chromium-prosesser (`pkill -9 -f chrome-headless-
+   shell`) → frigjorde 800+ MB umiddelbart
+2. `smoke/lib/runner.js` (`af1c4a8`): per-test page+context cleanup i
+   finally, browser.close() med 10s Promise.race-timeout, kill-9 safety-
+   net etter run. Hindrer at lekkasjen kommer tilbake.
+
+**Verifisert:**
+- Smoke 16/16 pass etter fix
+- 0 chromium-prosesser igjen etter run (var 38 før)
+- db-api restart: Whisper lastet 7s, MemoryPeak 3.22 GB, helsesjekk
+  grønn, RAM 2.6 GB tilgjengelig (var 1.6 GB før cleanup)
+
+**Gjenstår (krever Mayo's valg):**
+- Dobbel-deploy: deploy-backend.yml har `concurrency.cancel-in-progress:
+  false` så Action-en koordinerer med seg selv, men hvis Mayo kjører
+  `./deploy.sh` manuelt samtidig som push-trigger fyrer, har vi to
+  parallelle restarter. Mulig fiks: lock-fil i deploy.sh, eller fjerne
+  push-triggeren fra workflow.
+
+---
+
+## 🎯 (2026-06-23 13:01) — Vis transkript etter privat lyd-opptak (merge `fc98c54`)
+
+Mayo testet lyd-pipelinen og ville lese transkriptet (ligger i Postgres
+`meeting.transcript_text`, men hadde ingen UI-flate — private møter er skjult
+fra Obs BYGG-lista). La til **«📄 Vis transkript»**-knapp i Fang-arkets done-
+tilstand (`capture.jsx`) som henter `GET /meeting/{id}` og viser sammendrag +
+fullt transkript inline (scrollbart), merket «privat · ikke speilet til vault».
+Rein frontend (backend-endepunkt fantes, user_id-scoped). Commit `4335697`
+→ merge `fc98c54`. Build + deploy grønt. **NB:** lyd-pipelinen ikke
+end-to-end-bekreftet med ekte tale ennå — Mayo tester nå.
+
+---
+
+## 🎯 (2026-06-23 11:06) — Søk runde 2: streng bokstavelig matcher + dedupe (merge `881fd67`)
 
 Mayo testet de 13 fiksene (bra!), eneste gjenstående: søk. «mat» ga fortsatt
 random treff fordi matcheren tillot 1-edit ord-treff («mat»↔«man»). **Fjernet
