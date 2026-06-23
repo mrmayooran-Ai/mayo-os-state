@@ -4,9 +4,672 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-15 20:25 · **Av:** Claude (planlegger-session) · **Versjon:** v0.17 fix recency tid-på-døgn
+**Sist oppdatert:** 2026-06-23 10:43 · **Av:** Claude (planlegger-session) · **Versjon:** v0.29 Livsplan 13-bug UX-batch
 
-## 🎯 Nyeste (2026-06-15 20:25) — Fix: feil «timer siden» på samme-dags økter (`e193017`)
+## 🎯 Nyeste (2026-06-23 10:43) — Livsplan 13-bug UX-batch LIVE (merge `d6ab721`, PR #19)
+
+**Trigger:** Mayo feilmeldte 13 UX-bugs med screenshots mot live mayooran.com
+(Livsplanlegger). Planlegger-sesjonen delegerte fiksene til en isolert
+worktree-agent, gjennomgikk diffen, merget til `feat/whoop-redesign` →
+auto-deploy grønt. **Alle 13 live.** Kompilerings-verifisert, ikke nettleser-
+testet — Mayo tester på ekte enhet.
+
+| # | Bug | Rotårsak / fix |
+|---|-----|----------------|
+| 5 | Dag/natt gjorde ingenting | Invert-CSS lå i `App.jsx ShellLayout` (aldri mountet). Flyttet til `globals.css` (alltid lastet) |
+| 1 | Livets puls overlappet | `L0Puls position:absolute` lakk ut → bruker in-flow `PulseStripToday` |
+| 6 | Søk traff alt | `fuzzyScore` matchet 3-tegns vindu overalt → omskrevet (eksakt substring + ord-lengde-bevisst, fuzzy kun ≥4 tegn) |
+| 7/8 | Prio-dott-overlapp + sortering | ≈-badge → bunn; la til sortering (relevans/frist/opprettet ↑↓) + prio/område-filtre |
+| 10 | Jobb/Obs BYGG i Livsplan | Filtrerer `track==='jobb'`/`area==='obs_bygg'` ut av ALLE visninger + teller. Privat-only |
+| 11 | Global topp-nav støy | Skjuler skall-nav på `/livsplan` + diskret «‹ Mayo OS»-hjemknapp (ikke innelåst) |
+| 9 | ⋮ over ring + død legende | ⋮ flyttet ut av ring; status-legende filtrerer område-kort |
+| 4 | «Gjør når» låst | Var hardkodet 20. jun → ekte dato-velger, «ikke planlagt» når tom |
+| 3 | Swipe-lukk + autolagre | Drag-fra-hvor-som-helst (kun ved scroll-topp). Delvis: ikke full outbox per felt (patch lagrer hvert felt optimistisk m/ ærlig toast) |
+| 12 | Desktop høyre-panel kuttet | Uttrekkbar skuff (⤢ → 540px, titler wrapper) |
+| 13 | Mobil/desktop-paritet | Revidere på mobil-nav + Søk på desktop |
+
+**10 commits** (`5c84277`…`581102b`) på `claude/confident-noether-lpacih` →
+merge `d6ab721`. Build grønt (PageLivsplanV12 197 KB). Frontend deploy-run
+`d6ab721` = success.
+
+**Også (Mayo):** Vercel-GitHub-integrasjonen disconnectet → ikke flere
+ubrukte previews / bot-kommentar-spam. Prod var aldri på Vercel (VPS-only).
+
+**Annet denne sesjonen:**
+- Backend `e193017`: fix feil «timer siden» på samme-dags Strava-økter (tid-
+  på-døgn strippet i `/api/training`). Deployet.
+- CI-fix `f8be4c5`: `curl|head` SIGPIPE (exit 23) i deploy-verifisering →
+  capture-then-slice. (Etterfølgende deploy-run OOM-killet db-api ved Whisper-
+  last under restart — infra/timing, ikke kode.)
+- `HANDOVER-PT-HEALTH-AUDIT.md` (`a2eeadf`) → terminal-sesjonen kjørte Fase A–E.
+
+---
+
+## 🎯 (2026-06-22 23:30) — Livsplan UX-rewrite (`90df59c` + `95a3cec` + `d9de5ec`)
+
+**Mandat:** Mayo: «ta en re-vurdering av hele UX i livsplanlegger ... det
+er den jeg kommer til å bruke aller mest». «ikke X øverst i skjerm som
+jeg må lete etter». «du har 6 timer, kjør på».
+
+**Audit:** `docs/superpowers/reviews/LIVSPLAN-UX-2026-06-22.md` (17 funn,
+benchmark mot iOS HIG / Linear / Things 3 / Baymard).
+
+**Implementert (alle iOS-native gesture-mønstre):**
+
+1. **SheetHost rewrite** — drag handle øverst er primær lukk-affordance.
+   Swipe-down lukker. Snap points medium (60%) ↔ large (92%). X-knapp
+   fjernet helt fra sheet-header.
+
+2. **DesktopItemModal** — løser Mayo's konkrete klage «tekst kutter».
+   ItemDetail rendres som sentral modal (600 px) istedenfor trang
+   RightPanel (320 px). ESC + backdrop + ×.
+
+3. **Inline tittel-redigering** — auto-grow textarea med `overflowWrap:
+   anywhere`. Lange titler wrapper naturlig, kuttes aldri.
+
+4. **SwipeableItem** — iOS Mail-mønster. Drag høyre → «✓ Ferdig», drag
+   venstre → «🗑 Slett». Threshold 80 px med resistance + vertikal-lock.
+
+5. **useLongPress hook** — 500ms, vibrate-feedback, cancel-click-trick.
+
+6. **PullToRefresh wrapper** — pull > 70 px på toppen → onRefresh.
+
+7. **useTabSwipe** — swipe-left/right > 50 px bytter mellom nav-tabs.
+
+8. **ctx.completeItem / ctx.deleteItem** — felles handlers for swipe.
+   Optimistisk + rollback ved feil.
+
+9. **SkeletonItem** — placeholder med shimmer mens lister laster.
+
+**Smoke 16/16 pass.** Nye tester:
+- #15 ItemDetail er sentral modal > 400 px med tittel-textarea
+- #16 Sheet har drag handle + INGEN X i header (Mayo's eksplisitte klage)
+
+**Også:**
+- `tokens.js` har TYPE / SPACE / TOUCH tokens for fremtidig migrasjon
+- `ctx.refresh()` tilgjengelig (loadItems som named callback) klar for
+  PullToRefresh-wrapping når Mayo verifiserer gesture-konflikter er løst
+- ItemLine deaktiverer SwipeableItem når dragHandle-prop er satt (triage
+  beholder sitt eget drag-and-drop)
+- `docs/superpowers/reviews/LIVSPLAN-UX-PROVE-DETTE.md` — release-notes
+  med konkret prøv-dette-rekkefølge for Mayo når han våkner
+
+**Ikke gjort (utenfor 6t-budsjett, dokumentert i audit):**
+- Typografi-standardisering: 20 unike font-sizes → 7-8 stilarter (TYPE-
+  tokens definert, men eksisterende komponenter ikke migrert)
+- PullToRefresh-wrapping på spesifikke lister (avventer Mayo's feedback
+  på swipe-tab-konflikt-risiko)
+- useLongPress→context-menu kobling
+- Triage drag-and-drop modernisering
+
+---
+
+## 🎯 Nyeste (2026-06-22 14:15) — Privat lyd-opptak i Livsplanlegger (`0bedbe6` + `7fadfb8`)
+
+**Trigger:** Mayo: «trenger mulighet i mayooran.com å laste opp iphone
+lydopptak slik at whisper kan oversette transkribasjon og oppsumere…
+men dette er privat, ikke obs bygg. så må ha mulighet under
+livsplanlegger… nå hadde vi IVF møte f eks».
+
+### Hva
+🎙-knappen i Livsplanlegger-Fang-sheet er ikke lenger en stub. Tap →
+filvelger (m4a/mov/mp3/wav/webm/ogg) → upload som privat møte med full
+Whisper + Claude-pipeline. Action items lander i Livsplanlegger-inbox
+med riktig track/area, IKKE i Obs BYGG.
+
+### Backend (`0bedbe6`)
+`db_api/meeting_module.py`:
+- `/meeting/upload` aksepterer nå `is_private: bool = Form(False)` og
+  lagrer på meeting-raden ved opprettelse
+- `_insert_action_items` leser `meeting.is_private` og setter
+  `track='privat'` per item. Hvis Claude foreslår `area`, brukes det
+  (helse/familie/ivf/mayo_os/okonomi/obs_bygg). `sensitive=true` for
+  is_private eller ivf/okonomi.
+- `EXTRACTION_PROMPT` utvidet: Claude tildeler nå `area` per
+  action_item med eksplisitte definisjoner (ivf = fertilitet/klinikk/FET,
+  helse = trening/lege/blodprøve, familie = barn/Max/Priya, etc.)
+- Pipeline skipper Obsidian-vault-MD for private møter (privacy: ikke
+  speile IVF-/helse-transkripter til vault som syncer til andre enheter)
+
+### Frontend (`7fadfb8` på `feat/whoop-redesign`)
+`src/mobile/livsplan_v12/capture.jsx`:
+- Mic-stub fjernet (la inn fast tekst). Erstattet med ekte filvelger
+  (`<input type="file" accept="audio/*,...">`)
+- XHR-upload med progress (lik Obs BYGG Meetings.jsx-mønstret)
+- EventSource til `/meeting/{id}/stream` → live SSE-status:
+  "Splittet i 24 biter" → "Transkriberer 3/24…" → "Claude analyserer…"
+- På `done`-event: re-fetcher `/items` så ny inbox-rader dukker opp
+  uten side-reload. Toast: "Lyd transkribert · N oppgaver fanget"
+- Progress-overlay (lilla glasskort) under sheet-textarea — vises kun
+  under aktiv pipeline, lukkbar når ferdig
+
+### Privacy
+- Items får `sensitive=true` (blur via `t.blurSensitive` i UI)
+- `meeting_list?include_private=false` (default i Obs BYGG) filtrerer
+  hele transkriptet ut av Obs BYGG-listen — det vises kun i
+  Livsplanlegger
+- Ingen vault-MD = transkript bare i Postgres (`meeting.transcript_text`)
+
+### Test-status
+- Backend syntaks OK, db-api restartet og /health svarer
+- Form-validering verifisert med curl (401 = passerte form-parse,
+  traff auth-vegg)
+- Frontend bygget OK (Vite, ingen warnings utover eksisterende
+  chunk-size-advarsel). Bundle: `PageLivsplanV12-DKbVq94G.js` 184 KB
+- Ikke end-to-end testet (krever passkey-innlogging + faktisk audio).
+  Mayo må teste IVF-opptaket sitt.
+
+## 🎯 (2026-06-19 14:30) — Tasks IA Fase 2-3 (`b08b22c` + `96788f6`)
+
+**Trigger:** Mayo: "kjør Fase 2-5". Snapshot tatt:
+`~/backups/manual/pre-fase2-5-20260619-1157.sql` (97 KB).
+
+### Fase 2 — `crm_task` → `item` (`b08b22c`)
+**Auditen flagget «RISKY pga Apple sync»** men prod-tilstand viser at
+Apple sync IKKE er i aktiv bruk: 0 av 88 crm_tasks har `reminder_id` eller
+`synced_at`. Risiko derfor mye lavere enn antatt.
+
+Migrasjoner:
+- **019**: utvider item-tabellen med `reminder_id BIGINT`, `sync_origin
+  TEXT`, `synced_at TIMESTAMPTZ`, `contact_id UUID`, `goal_id INTEGER` +
+  FK-er + indexer. Apple-sync-felter beholdes så fremtidig aktivering
+  ikke trenger nytt skjema-skifte.
+- **020**: idempotent flytting av alle 88 crm_task-rader til `item` med
+  `source='task'`, `track='privat'`. Status: inbox/open→inbox, today→
+  today, done→done, dropped→dropped. tags, position, reminder_id,
+  contact_id, goal_id, created_at, updated_at bevart.
+
+**IKKE-DESTRUKTIV**: crm_task beholdt som arkiv med `migrated_to_item_id`-
+peker. Innebygd guard ROLLBACK'er ved feilet mapping. Resultat: 88/88
+migrert.
+
+### Fase 3 — `/tasks` + `/tasks/unified` proxy (`96788f6`)
+SPA-koden uendret — `_item_to_task()` mapper item-skjema tilbake til
+crm_task-format. Endringer i `tasks_module.py`:
+- GET/POST/PATCH/DELETE /tasks: proxy mot `item WHERE source='task'`.
+  Status-mapping ('open'-alias→inbox).
+- POST /tasks/quick (iOS Shortcut): INSERT direkte til item.
+- GET /tasks/unified: én query mot `item WHERE source IN ('task','meeting',
+  'voice-journal')` JOIN meeting. Apple-reminder-del uendret.
+
+bg_task_sync no-op'er trygt — task_sync.py refererer til crm_task som
+forblir arkiv. Apple-sync flyttes til item-tabellen i fremtidig fase når
+Mayo aktiverer det.
+
+### Verifisert
+- /tasks → 50 items (default limit), filter status=inbox→62 items.
+- PATCH status round-trip OK (today/inbox).
+- /tasks/unified?limit=300 → **105 totalt** (62 task + 38 meeting + 5
+  reminders).
+- Smoke 14/14 pass.
+
+### Fase 4 — Slett Tasks.jsx duplikat (`7865bb4`) ✅
+Mayo valgte A: PageTasks (mobil-redesign på /tasks) som SOT.
+- `src/routes/Tasks.jsx` slettet (-814 linjer)
+- `App.jsx`: Tasks-import fjernet, `/calendar/tasks` → `<Navigate to="/tasks" replace />`
+- `CalendarLayout.jsx`: TASKS-tab fjernet fra TABS
+
+**Bundle**: main 594 KB → 572 KB (-22 KB). Smoke 14/14 pass.
+
+### Fase 5 — DROP legacy-tabeller (2026-06-19 18:42) ✅
+Migration 021 dropper `crm_task` + `meeting_action_item`. All task-data
+(126 rader) lever videre i `item` via source-flagg.
+
+**Refaktor før drop** (alle skrivere/lesere flyttet til item):
+- `meeting_module._insert_action_items` → INSERT item source='meeting'
+- `meeting_module._create_tasks_from_action_items` → no-op (duplikat fjernet)
+- `meeting_module.meeting_assignees` → SELECT item source='meeting'
+- `server.py /voice/task` → INSERT item source='task' track='privat'
+- `server.py /action-items/backfill` → INSERT item source='meeting'
+- `goals_module` task-stats → SELECT item source='task' AND goal_id
+- `modules/vault/weekly_digest` → SELECT item source='meeting'
+- `modules/reminders/task_sync.enabled()` → hardcoded False (Apple-sync må
+  re-implementeres på item-tabellen før reaktivering — ikke i bruk i dag)
+
+**Dead code slettet:**
+- `db_api/item_mirror.py` (crm_task → item speil)
+- `item_logic.crm_task_to_item_fields` + 4 tester
+
+**Eksisterende bug oppdaget — FIKSET 2026-06-20 (`08ff902`):** rute-
+rekkefølge `/meeting/{id}` deklarert før `/meeting/assignees` →
+'assignees' tolket som UUID → 500. Flyttet `/meeting/assignees` +
+`/meeting/entities` til FØR `/meeting/{id}` med kommentar over som
+forklarer hvorfor. E2E: 10 unike assignees returneres nå.
+
+---
+
+## 🎯 2026-06-22 — Innstillinger-side (sikkerhets-senter) (`abbcff6` + `6420c39`)
+
+**Trigger:** Mayo: «lag innstillinger-siden». Samler alle security-
+relevante kontroller på én flate.
+
+**Backend (`abbcff6`)**:
+- GET `/pyauth/login-history?limit=100` returnerer login_attempt-rader
+  + aggregerte 30d-stats (success_30d, fail_30d, unique_ips_30d, fail_24h).
+- DELETE `/pyauth/sessions` (manglet før!) tar enten `{token}` eller
+  `{token_prefix}` (8-tegn). Prefix krever EKSAKT 1 treff for å unngå
+  feil sletting. Avviser nåværende sesjon (bruk /logout).
+
+**Frontend (`6420c39`)**:
+- Ny `PageInnstillinger.jsx` mountet på `/innstillinger`:
+  · **Passkeys** — liste m/ device_label, sist brukt, iCloud-backup-flagg,
+    slett-knapp (blokker sletting av siste passkey), legg-til-knapp.
+  · **Aktive sesjoner** — current-badge, IP-prefix, last_seen, logg-ut.
+  · **Login-historikk** — KPI-kort (vellykkede/feilet/unike IPs siste 30d),
+    advarsel hvis fail_24h > 5, filter-toggle, tabell m/ IP/country/
+    method/reason.
+- PageHjem-headeren: 🛡️-knapp navigerer til /innstillinger. Rødt badge
+  hvis ingen passkey registrert.
+
+**Smoke 14/14 pass** (en flake på 08 reproduserte ikke).
+
+---
+
+## 🎯 2026-06-21 — Security-hardening på login (`517fcb2` + `f4623c0`)
+
+**Trigger:** Mayo: «ekstrem sikkerhet — har helse og journal her».
+Sikkerhetsvurdering avslørte 5 kritiske/høye funn på login-flaten.
+Implementert i ett bundle:
+
+1. **Tvunget 2FA**: krever BÅDE passord OG OTP. Tidligere enten-eller.
+2. **Rate limit**: 5 feilforsøk/IP/5min → 429. Python-implementasjon
+   (ikke nginx) siden db.mayooran.com går CF-tunnel → db-api direkte.
+3. **Session-TTL ned til 14 dager** (fra 90).
+4. **Audit-log på alle login-forsøk** til `login_attempt`-tabellen
+   med IP, user-agent, country, method, success, reason.
+5. **Web-push ved vellykket login** «🔓 Ny innlogging fra <land>, <enhet>».
+
+**Frontend**: Login.jsx viser nå BÅDE passord OG OTP-felt samtidig.
+Enter på passord → fokus til OTP. Feil → tøm OTP, behold passord.
+Status-strip: «BCRYPT-12 + TOTP-6 · PG-SESSION 14D · RATE-LIMIT 5/5MIN».
+
+**Bypass**: `LOGIN_BYPASS_TOKEN` i .env + cookie `mayo_bypass` lar Mayo
+omgå rate limit hvis han blir låst ute — settes via SSH.
+
+**Smoke 14/14 pass.**
+
+**Gjenstår (krever Mayo)**:
+- chat.mayooran.com bak CF-tunnel (DNS-endring)
+- Cloudflare Access foran SPA (CF dashboard)
+- Token-rotasjon (oppdaterer Shortcuts)
+- Bitwarden vault-entry med TOTP + recovery-instruks (bruk **bitwarden.eu**)
+
+**Arkitektur-funn (fail2ban)**: fail2ban er feil verktøy for vårt setup
+fordi CF-tunnel skjuler angriperens IP fra iptables. Erstattet med
+progressive Python-rate-limit (`f026b38`):
+- Tier 1: 5 forsøk / 5 min
+- Tier 2: 15 forsøk / 1 time
+- Tier 3: 40 forsøk / 24 timer
+
+Strengeste tier rapporteres i 429-melding + audit-log.
+
+---
+
+## 🎯 2026-06-20 — Apple Reminders → mayo_sov → GCal speiling (`2068064` + `b65b254`)
+
+**Trigger:** Mayo: «vil at taskene skal speile til Google Calendar ut i
+fra frist på tasken. Bruker Apple hurtigknapp for å opprette task i Apple
+Reminders. Bruker primært Google Calendar appen for oversikt. Men huk —
+må ha dette i livsplanlegger.»
+
+**Endring:**
+- `/reminders/bulk-sync` speiler nå hver Apple Reminder til item-tabellen
+  (`source='reminder'`, `track='privat'`). Idempotent via `origin_ref=
+  reminder.id`. Slett-håndtering: når reminder forsvinner fra Apple,
+  soft-delete tilsvarende item.
+- Migration 022 backfiller 6 eksisterende reminders.
+- `/tasks/unified` leser reminders via item (source='reminder')
+  istedenfor direkte FROM reminder — unngår dobling.
+- `PageTasks.jsx` leser nå `/tasks/unified` så Apple Reminders dukker opp
+  i I dag/Forfalt-bucketene. moveTask bruker `/items/{id}` PATCH.
+- JOIN-mønster bytt fra `m.id = i.origin_ref::uuid` til `m.id::text =
+  i.origin_ref` så reminder-items (bigint→text origin_ref) ikke trigger
+  UUID-cast-feil.
+
+**Automatisk GCal-sync:** `gcal_sync.py` finner alle items med due_at
+uten gcal_event_id og pusher dem. Cron-frekvens: 3 min. Mayo's reminders
+dukker opp i Google Calendar innen 3 min etter Shortcut-trigger.
+
+**Test-skript:** `infra/scripts/test-reminder-sync.sh` verifiserer hele
+kjeden ende-til-ende — 5/5 pass.
+
+**For å aktivere i prod**: Mayo må konfigurere iOS Shortcut til POST mot
+`db.mayooran.com/reminders/bulk-sync` med `X-Shortcut-Token`-header
+(`SHORTCUTS_TOKEN` fra .env). Shortcut må sende ALLE reminders i hver run
+(Apple's «I dag» er filter, ikke separat liste).
+
+**Smoke 14/14 pass.**
+
+Snapshot: `~/backups/manual/pre-drop-legacy-20260619-1828.sql` (45 KB).
+E2E: alle endepunkter grønne, smoke 14/14.
+
+**Notabene:** `reminder.crm_task_id`-kolonnen står som dødt felt — kan
+ryddes i senere migrasjon.
+
+### Fase 5 — IKKE GJORT (for risikabelt)
+`meeting_action_item` og `crm_task` beholdes som arkiv med
+`migrated_to_item_id`-pekere. Hvis noe går galt:
+`UPDATE item SET deleted_at=now() WHERE source IN ('task','meeting',
+'voice-journal')` reverserer alt. Sletting kan vurderes senere når
+proxy-laget er bekreftet stabilt over flere uker.
+
+---
+
+## 🎯 (2026-06-19 13:45) — Tasks IA Fase 1 Steg 2–4 (`dbdbb56` + `e9f3ca1`)
+
+**Trigger:** Mayo: "kjør Steg 2–4". Fase 1 av konsolideringen som auditen
+anbefalte (4–5t). Snapshot tatt: `~/backups/manual/pre-tasks-ia-20260619-1140.sql`.
+
+### Steg 2 — Datamigrasjon (`dbdbb56`)
+Migration 018 flyttet alle 38 `meeting_action_item`-rader til `item`-tabellen
+med `source='meeting'`, `track='jobb'`, beholdt `kanban_lane` direkte. Mapping:
+text→title, assignee→assigned_to, due_date→due_at (Oslo tz), status→state,
+meeting_id→origin_ref::text.
+
+**IKKE-DESTRUKTIV**: meeting_action_item-tabellen er beholdt som arkiv med ny
+`migrated_to_item_id`-peker. Migrasjonen har innebygd guard som ROLLBACK'er
+hvis noen rad ikke kunne mappes. Resultat: 38/38 migrert, 16 assigned_to satt.
+
+### Steg 3 — `/action-items` proxy (`e9f3ca1`)
+SPA-koden er **uendret** — `_item_to_action_item()` mapper item-skjemaet
+tilbake til action_item-formatet. GET filtrerer på `source IN ('meeting',
+'voice-journal')`. PATCH oversetter status→state med completed_at, dueDate
+til timestamp med Oslo-tz, behandler null-felter via `exclude_unset`.
+DELETE er nå soft-delete (item.deleted_at).
+
+Voice-journal-action_items skrives nå direkte til `item` istedenfor
+`meeting_action_item` — proxy plukker dem opp via voice-journal-source.
+
+### Steg 4 — Apple Reminders-sync intakt ✅
+crm_task (88 rader) og reminder-tabeller er uberørt. TASK_REMINDER_SYNC=1
+fortsatt aktivt. Ingen mister Apple-sync siden vi kun har konsolidert
+meeting_action_item — som aldri var Apple-synket.
+
+### Verifisert
+- E2E: PATCH status=done/open, kanban_lane, soft-delete — alle round-trip OK.
+- Smoke 14/14 pass (inkl. #11 obs-tasks-kanban som verifiserer at SPA
+  fortsatt rendrer Brio-kanban-tavla mot proxy-en).
+- assignee_stats: 10 personer med åpne actions, fungerer som før.
+
+### Senere (Fase 2–5, ~6–8t — IKKE startet)
+- Migrere `crm_task` → `item` (RISKY pga Apple sync).
+- Aktivere `/tasks/unified` read-projection i alle UI-er.
+- Slette `PageTasks.jsx` ↔ `Tasks.jsx` duplikat (~100KB).
+- Slette legacy-tabeller (meeting_action_item, crm_task) når trygt.
+
+---
+
+## 🎯 (2026-06-19 13:15) — Åpne spor fra reviews (`2300eb1` + `415de89` + `3b063df`)
+
+**Trigger:** Mayo: "ta åpne sporene du nevner". De tre sporene fra forrige
+oppsummering: kalender-union, tasks-IA Fase 1, høyrepanel-duplikasjoner.
+
+### Spor #1 — Kalender-union (`2300eb1`) ✅
+Bekreftet gap: 7 meetings + 5 items siste 30 dager hadde scheduled_at men
+manglet gcal_event_id og var derfor usynlige i SPA-kalender. GET /calendar
+unioner nå inn `meeting` (source='_local_meeting') og `item`
+(source='_local_item') med scheduled_at uten gcal_event_id. E2E: 46 events
+i 14-d vindu = 45 Google + 1 tidligere usynlig lokalt meeting.
+
+### Spor #2 — Tasks-IA Fase 1, Steg 1 (`415de89`) ⚠ delvis
+Lagt `item.assigned_to TEXT` (migrasjon 017) + ItemCreate/Patch + EDITABLE_
+FIELDS + _COLS. E2E: PATCH assigned_to round-trip OK, 21/21 item_logic-
+tester pass.
+
+**Steg 2–4 IKKE gjort** (krever Mayo-godkjenning — ikke-reversibel uten
+backup):
+- Steg 2: data-migrering `meeting_action_item` → `item` med `source='meeting'`
+- Steg 3: re-pek frontend /obs-bygg/oppgaver fra `/action-items` til
+  `/items?source=meeting`
+- Steg 4: verifiser Apple Reminders-sync er intakt
+
+### Spor #3 — Høyrepanel-duplikat (`3b063df`) ✅
+HANDOVER_RESULT 2026-06-18 flagget «I dag: 5» vises i både RightSummary KPI-
+rad og SmartTiles i sentrum på desktop ≥1024px. Wrappa SmartTiles i
+`.lp-smarttiles-center` med `@media (min-width: 1024px) { display: none }`.
+Samme breakpoint som RightPanel sin visibility-grense.
+
+**Smoke:** 14/14 pass etter alle endringer.
+
+---
+
+## 🎯 (2026-06-19 12:54) — ARIA-polish addendum til memo #8 (`2f187b7`)
+
+**Trigger:** Mayo: "ta neste oppgave i listen" — i kveld var #8 ARIA allerede
+gjort i `4ecf00a` (basale roles + labels). Min sesjon gikk videre og adresserte
+restenede anti-patterns + flere primitiver som ikke var dekket.
+
+**Fronted (`2f187b7`):**
+- **Anti-pattern fikset i ItemLine**: tidligere `aria-label=it.title` på wrapperen
+  overstyrte all descendant-tekst for skjermleser. Ny `buildItemAria()` gir rik
+  label: tittel · område · prioritet · frist · energi · undertask-progresjon.
+- `PriDots` → `aria-hidden` (info finnes i parent-label, ingen dobbeltlesning).
+- `AreaTag` button-versjon → `aria-label="Filtrer på område X"`.
+- `SensLock` → `role="img"` + `aria-label="Sensitiv oppgave — privat"`.
+- `SubtaskRow` priority-button → menneskelig label (ingen/lav/middels/høy)
+  istedenfor "0 av 3".
+- `SmartTiles` → `aria-label="I dag: 3 oppgaver — krever oppmerksomhet"`.
+
+**Bundle:** PageLivsplanV12 179→181 KB (+1.6 KB ARIA-strings), main uendret
+594 KB. **Smoke 14/14 pass** (med ny test #12, #13, #14 lagt av kveldssesjon).
+
+---
+
+## 🎯 (2026-06-18, kveld) — Konsolideringssprint fra REVIEW-2026-06-17 (10 punkter)
+
+**Versjon:** konsolideringssprint — 10/10 memo-punkter ferdig
+
+## 🎯 (2026-06-18, kveld) — Konsolideringssprint fra REVIEW-2026-06-17 (10 punkter)
+
+**Trigger:** Mayo: «ta alle punktene stegvis» — alle resterende punkter
+fra prio-listen + TL;DR-konsolideringspunkter.
+
+**Ferdig:**
+
+| # | Tema | Commit (backend) | Commit (frontend) |
+|---|------|------------------|-------------------|
+| C | Sky-backup-doctor (audit migrations + dumps + offsite-hook) | `1444534` | — |
+| #6 | Atomisk lane-cascade ved kanban_lanes-endring | `a2d801c` | — |
+| #7 | Feltnivå-diff audit-log på PATCH /items + meeting/summary | `ed63854` | — |
+| A2 | Smoke #12 noindex-privacy (chain-bug-test) | `7eee469` | — |
+| A1 | test_gcal_dedup (chain-bug-test) | `f1ab8de` | — |
+| A3 | Smoke #13 fuzzy-edge-cases | `bfd337f` | — |
+| #2 | Smoke #14 inbox-item søkbart (chain-bug-test) | `e864bb4` | — |
+| #10 | Pinch-zoom på /brain + /obs-bygg 3D-graf | — | `d08fdd8` |
+| #8 | ARIA-pass på ItemLine/SubtaskRow/AreaCard | — | `4ecf00a` |
+| B | Statisk duplikat-audit høyrepanel ↔ sentrum (rapport) | `0f39a15` | — |
+
+**Audit-funn (oppsummert i HANDOVER_RESULT.md):**
+- 2 reelle duplikasjoner mellom RightPanel og sentrum (KPI-tall HØY, forfalt-stack LAV)
+- Quick-fix er en CSS media-query — overlatt til frontend-revisjon
+
+**Tester:**
+- Pure-logic: 21/21 (item_logic) + 7/7 (audit) + 8/8 (gcal_dedup) ✓
+- Smoke: ny test #12 + #13 + #14 verifisert mot live mayooran.com ✓
+
+**Backend-deploy:** `sudo /bin/systemctl restart db-api` etter hver
+endring. Helsesjekk OK på alle. Live E2E-test av audit-diff (PATCH title+
+priority returnerte korrekt diff-rad i audit_log).
+
+**Etterspurt etter første sprint og levert (rapporter i HANDOVER_RESULT.md):**
+
+| Review | Hovedfunn | Toppanbefaling |
+|---|---|---|
+| `/brain` | ~~🔴 XSS-vektor i Psykolog.jsx~~ ✅ **FIKSET** `0e44bb3` — DOMPurify-wrap rundt marked.parse | — |
+| `/kalender` | SPA leser fra `calendar_event`-tabell, gcal-pull skriver til `item`+`meeting` → mulig UI-gap | verifiser union i `/api/db/calendar` |
+| `/tasks` IA | `/api/db/tasks/unified` finnes i backend, ikke brukt i SPA. 4+1 task-flater + ~100KB duplikat | Fase 1: assigned_to + migrer meeting_action_item → item (~4–5t) |
+
+Commit-hash for review-blokken: `3437ace`.
+
+## 🎯 (2026-06-18, ny økt) — chore(infra): commit av obs_gcal_dedupe.py (`6d61cf1`)
+
+**Trigger:** Mayo: "hvor slappu sist?" → fant untracked
+`infra/scripts/obs_gcal_dedupe.py` (opprettet 17. juni 11:18, aldri
+committet). Mayo valgte å committe det som operasjonelt verktøy.
+
+**Hva er det:** Engangs-cleanup brukt 2026-06-17 da første Obs BYGG-
+backfill havnet i en auto-opprettet «Mayo OS · Obs BYGG»-kalender før
+`CALENDAR_SYNC_ID_OBS` var satt. Andre backfill (mot riktig kalender)
+etterlot 14 duplikater i auto-kalenderen. Scriptet sletter events med
+`mayo_meeting_id`-extendedProperty i ikke-target-kalendere og fjerner
+selve auto-kalenderen hvis den blir tom.
+
+**Hvorfor committe:** CLAUDE.md regel #1 — alt som skal kjøre skal være
+i git. Gjenbrukbar hvis calendar-sync-feilkonfig dukker opp igjen.
+
+## 🎯 Forrige (2026-06-18 13:05) — fix(spa): Suspense rundt lazy routes (`cc2637e`)
+
+**Trigger:** Mayo: "kommer ikke inn på flere av tabbene i mayooran.com".
+
+**Diagnose:** Commit `66c95bf` (lazy-load 9 mobile pages) påstod i melding
+at MayoShell allerede hadde `<Suspense>` rundt `<Outlet/>` — det stemte
+ikke. Navigasjon til /strength, /helse, /tasks, /brain, /assistent,
+/kalender, /livsplan*, /obs-bygg/* fikk React til å kaste «component
+suspended without boundary», hele app-treet blanket. Kun `/` (PageHjem,
+eager-importert) overlevde.
+
+**Fix (`cc2637e`):** Pakket alle tre `<Outlet/>`-steder i `MayoShell.jsx`
+i `<Suspense fallback="Laster…">`. Build OK, push trigger auto-deploy.
+
+**Lærdom:** commit-meldinger kan lyve. Verifiser når kode antar at en
+boundary/wrapper finnes andre steder.
+
+## 🎯 (2026-06-18 12:45) — Brio-style kanban for /obs-bygg/oppgaver (`ac74b79` + `fc3f875`)
+
+**Trigger:** Mayo: "ta tak i neste oppgave i listen og kjør helt ut" — neste i
+REVIEW-2026-06-17.md (memo prio #4): Brio-style kanban for action-items.
+
+**Backend (`5c04ace`):**
+- Migration `016_action_item_kanban.sql` legger `kanban_lane TEXT` på
+  `meeting_action_item` + index `(user_id, kanban_lane)`.
+- `ActionItemPatch` utvidet med `kanban_lane`, så drag-drop PATCH-er det.
+- Nye endepunkter: `GET/PUT /action-items/board-config` lagrer lane-config
+  (id, title, color) i `settings_kv`-tabellen som key `obs_action_lanes`.
+  Default ved tom KV: Research / Jobbes med / I fremtiden.
+- `list_action_items` SELECT inkluderer `ai.kanban_lane`.
+
+**Frontend (`fc3f875`):**
+- `PageObs.jsx`: ObsTasks får view-toggle (Liste/Tavle) som persisteres i
+  `localStorage['obs.tasks.view']`. Default = Liste (bakoverkompatibel).
+- Ny `ObsKanban`-komponent (~200 linjer): brukerdefinerte kolonner med dra-
+  og-slipp mellom dem, lane-editor med rename/reorder/delete, orphan-
+  håndtering ved sletting, Gjort/Avvis-knapper bevart på kort. Speiler
+  livsplan_v12 KanbanBoard-mønstret men forenklet — global tavle-config
+  istedenfor per-parent (action-items er én felles brett).
+- Bundle: PageObs lazy-chunk vokste fra ~140KB → 146KB (+6KB). Main
+  bundle 594KB (uendret).
+
+**Smoke (`ac74b79`):** Ny test `11-obs-tasks-kanban.js` verifiserer
+toggle finnes, klikker Tavle, sjekker at Rediger kolonner + minst én
+default-lane rendres. 11/11 pass på andre kjøring (test 08 hadde én flake
+på /helse-tekstmatch, ikke relatert).
+
+**E2E-verifisert:** `curl PATCH /action-items/{id} {kanban_lane:"research"}`
+→ 200, GET viser kanban_lane i response.
+
+---
+
+## 🎯 2026-06-16 07:46 — PT-audit Fase E (loose ends) (`193e8e4`)
+
+**Trigger:** Mayo: "kjør fase e" — fortsetter etter Fase D-rapporten der jeg
+flagget tre forbedringer som «kommer i Fase E».
+
+**Fase E (frontend `193e8e4`):**
+- E1: `routes/health/Program.jsx` parallell-fetcher nå `action=coach` +
+  `action=daily`. Ny per-gruppe restitusjons-glass viser timer-siden + terskel
+  per push/pull/ben + `picked_group`-markering. Desktop ↔ mobil paritet.
+- E2: `PageStyrke` trafikklys-knapper: title-tooltip per gruppe
+  ("push: <36t rød · 36–60t gul · >60t grønn") + inline `vindu 36/60t`-mono
+  på valgt rutine. Mayo ser hvor lyset bytter.
+- E3 (§3.2-D): `routes/strength/Strength.loadRoutine` mapper nå
+  `daily.planlagt[].anbefaling` → `item.rec` per `exId` når rutine-id
+  matcher motorens valg. `ExerciseCard` bruker allerede
+  `item.rec || recommendNext()` — backend tar over som SOT, lokal
+  fallback for ikke-daily-rutiner. Eliminerer drift-risiko mellom JS- og
+  Python-progresjons-motorer.
+
+**Tester:** uendret (99/99 grønne — Fase E er ren wire-up uten ny logikk).
+**Frontend-deploy:** `193e8e4` live på mayooran.com.
+
+**Status PT-audit:** Fase A+B+C+D+E fullført. Audit-doken pluss alle
+loose ends lukket.
+
+---
+
+## 🎯 (2026-06-16 05:40) — PT-audit Fase C+D fullført (`225dc4e`, `356cc7e`)
+
+**Trigger:** Mayo: "kjør fase c og d" — fortsetter HANDOVER-PT-HEALTH-AUDIT.
+
+**Fase C — arkitektur (`225dc4e` backend + `356cc7e` frontend):**
+- C2 (§3.3-J): `_daily_brief` beriker recovery med Garmin-signaler hentet
+  fra `health_daily(source='garmin')` — body_battery, stress_avg,
+  resting_hr. `pt_llm.anonymize()` inkluderer disse → coach ser komplett
+  Whoop+Garmin-bilde. Motoren bruker ikke Garmin i gating ennå (forsiktig).
+- C3 (§3.2-E): Differensierte restitusjons-terskler. THRESHOLDS = {push
+  (36, 60), pull (48, 72), ben (60, 84), markloft (60, 84)}. Push raskest,
+  ben/markløft tregest (aksial). `_freq_band` tar group-parameter. Frontend
+  `strength.js.FREQ_THRESHOLDS` + `PageStyrke` synket med backend.
+- C1 (§3.3-H): Allerede gjort (Strava OAuth-fetch primær, Apps Script
+  fallback) — verifisert, ingen endring.
+
+**Fase D — UX-pass:**
+- D1: PageStyrke/PageHelse null-disiplin god. Bugg: hardkodet `h < 48` i
+  note-tekst (PageStyrke:775) → erstattet med per-gruppe `tAvvis`.
+- D2 (trafikklys): Solid design. Anbefaling: vis terskel-tall på
+  hover/tap så Mayo lærer per-gruppe-grensen.
+- D3 (coach-tekst): Prompt + anonymize + fallback-kjede solid. Trenger
+  live-sampling for subjektiv kvalitet.
+- D4: Desktop `routes/health/Program.jsx` leser `action=coach` (subset),
+  mobil `PageStyrke` leser `action=daily` (full motor). Funksjonelt OK,
+  desktop mangler recency/picked_group. Lavprioritet å unifisere.
+
+**Tester:** 98 → 99 grønne. Lagt til `test_T17b_per_group_thresholds_locked`.
+
+**Backend-deploy:** db-api restartet. **Frontend-deploy:** `356cc7e` live.
+
+**Status PT-audit:** Fase A+B+C+D fullført. Audit-doken lukket.
+
+---
+
+## 🎯 (2026-06-15 21:00) — PT-audit Fase A+B fullført (`2c0c340`, `edd4f5a`, `2a2d98a`)
+
+**Trigger:** `HANDOVER-PT-HEALTH-AUDIT.md` (`a2eeadf`) — fra planlegger til terminal.
+
+**Fase A — verifisering (`2c0c340`):**
+- A1: e193017-fixen er på disk + korrekt — `sessions[].date` beholder full ISO-ts.
+- A2: pytest 79 → 86/86 ✓. Fant + fikset import-chain-bug i `strava_watcher.py`
+  (manglet `_ROOT` på sys.path → 7 zones_hrlag-tester gikk ned ved pytest cwd).
+- A3: `_merge_recency` bruker `min(vals)` per gruppe — bekreftet + låst med
+  `tests/test_merge_recency.py` (6 tester inkl. eksplisitt MAX-regresjons-guard).
+
+**Fase B — fixes (`edd4f5a` backend + `2a2d98a` frontend):**
+- B1 (§3.2-A): Frontend↔backend recency synket. `/training?action=daily`
+  eksponerer nå `card.recency` + `picked_group`. PageStyrke leser disse
+  direkte i stedet for å regne lokalt → eliminerer divergens-risiko der lokal
+  kunne vise GRØNT mens backend sa RØDT.
+- B2 (§3.2-C): `okt_logikk._PUSH_RE`/`_LEGS_RE` fjernet. Bytt til nye public
+  helpers `is_push_request()` / `is_legs_request()` / `title_mentions_group()`
+  i `parser.py` som bruker SAMME `_KEYWORDS` som `parse_title`. Fritekst og
+  Strava-titler kan ikke lenger drifte. Manglende keywords lagt til:
+  PUSH (skulderpress, brystpress, tricep, pec fly), LOWER (legext, utfall,
+  tåhev, lår).
+- B3 (§3.2-G): `strength_session.ts` er TIMESTAMPTZ end-to-end. Frontend
+  sender ISO+Z, backend bruker `fromisoformat()`, `_parse_ts` håndterer
+  string/naive/aware korrekt. Ingen kodefiks — låst med
+  `tests/test_parse_ts.py` (6 tester).
+- B4 (§3.2-F): Eksplisitt «Whoop-data ikke tilgjengelig»-banner over
+  trafikklys-kort i PageStyrke når `!hasRec`. Forhindrer feiltolkning av
+  grå/grønne dots som "alt klart" når recovery-sone er ukjent.
+
+**Tester:** 92 → 98/98 grønne. **Backend-deploy:** db-api restartet.
+**Frontend-deploy:** `2a2d98a` live på `mayooran.com`.
+
+**Gjenstår (Fase B):** ingen i scope. Fase C (arkitektur) + D (UX-pass)
+venter på Mayos go.
+
+---
+
+## 🎯 (2026-06-15 20:25) — Fix: feil «timer siden» på samme-dags økter (`e193017`)
 
 **Mayos rapport:** «på push sier den trent for 20t siden — men hadde push 7 timer siden.»
 
