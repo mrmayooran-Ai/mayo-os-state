@@ -4,7 +4,24 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-23 13:55 · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.30 OOM-fix smoke-lekkasje
+**Sist oppdatert:** 2026-06-23 · **Av:** Claude (terminal) · **Versjon:** Spør Jarvis i møter
+
+## 🎯 Nyeste (2026-06-23) — «Spør Jarvis» Q&A per møte (BE `3de665a` + FE PR #21)
+
+**Trigger:** Mayo: «Bygg Spør Jarvis inne i hvert møte — Q&A mot møtets transkript + sammendrag.»
+
+**Backend (`mayo-ai-os`, branch `claude/confident-noether-lpacih`, commit `3de665a`):**
+- Migration `024_meeting_qa.sql` — tabell `meeting_qa` (id/meeting_id/user_id/question/answer/model/sensitive/created_at) + indeks `(meeting_id, created_at)`. Idempotent.
+- `POST /meeting/{id}/ask` + `GET /meeting/{id}/qa` i `db_api/meeting_module.py` (på eksisterende meeting-router — ingen server.py-endring).
+- **Suverenitets-ruting:** `sensitive = bool(is_private) if is_private is not None else True` (FAIL-CLOSED). sensitive → lokal Gemma (`gemma3:4b`, localhost Ollama), aldri sky. ikke-sensitiv → Claude `claude-sonnet-4-5` på anonymisert kontekst (reuse `Anonymizer`), de-anonymisert svar. Aldri lokal→sky-fallback ved feil.
+- Krypterer spørsmål+svar (jarvis-modulens Fernet) når sensitivt. Graceful svar ved modell-feil (ingen 500).
+- ⚠️ **Backend auto-deploy AV** → krever manuell `cd ~/mayo-ai-os && ./deploy.sh` + at migration 024 kjøres mot mayo_sov. Kun py_compile/AST-verifisert, IKKE runtime-testet på VPS.
+
+**Frontend (`mayo-os`, branch `claude/confident-noether-lpacih`, draft PR #21 → `feat/whoop-redesign`):**
+- Ny `src/mobile/AskJarvis.jsx` (gjenbrukbar panel). Mountet i privat møte-detalj (`livsplan_v12/meetings.jsx`, 🔒 lokal) + Obs BYGG-detalj (`pages/ObsDetail.jsx` SummaryTab, ☁ anonymisert).
+- `npm run build` rent. Ingen nye deps. `tokens.ts` urørt.
+- ✅ **MERGET til prod** (`e0425c4`, PR #21) etter planlegger-review av rutings-koden (bekreftet IVF aldri til sky). Frontend auto-deployer; UI-en er live, men selve svaringen aktiveres FØRST når backend deployes (til da: ærlig «kunne ikke svare», ingen data sendt).
+- ⚠️ **GJENSTÅR (Mayo/VPS):** kjør migration 024 + `cd ~/mayo-ai-os && ./deploy.sh` (samme deploy shipper også JSON-krasj-fiksen `b111fa1`). Deretter verifiser at IVF-spørsmål treffer lokal Gemma, ikke Claude.
 
 ## 🎯 Nyeste (2026-06-23 13:55) — OOM-diagnose: chromium-lekkasje var rotårsak (`03301ae`/`af1c4a8`)
 
@@ -37,12 +54,16 @@ press fra smoke-lekkasjen.
 - db-api restart: Whisper lastet 7s, MemoryPeak 3.22 GB, helsesjekk
   grønn, RAM 2.6 GB tilgjengelig (var 1.6 GB før cleanup)
 
-**Gjenstår (krever Mayo's valg):**
-- Dobbel-deploy: deploy-backend.yml har `concurrency.cancel-in-progress:
-  false` så Action-en koordinerer med seg selv, men hvis Mayo kjører
-  `./deploy.sh` manuelt samtidig som push-trigger fyrer, har vi to
-  parallelle restarter. Mulig fiks: lock-fil i deploy.sh, eller fjerne
-  push-triggeren fra workflow.
+**Push-trigger fjernet (`19a41ba`):** Mayo valgte å fjerne push-trigger
+fra `.github/workflows/deploy-backend.yml`. `workflow_dispatch` beholdt
+(web-UI + `gh workflow run`). Manuell `./deploy.sh` på VPS uendret.
+Effekt: ingen automatiske Action-deploys lenger → ingen parallelle
+restarter → ingen OOM-risiko fra dobbel-Whisper-load.
+
+**Deploy-workflow nå:**
+1. Skriv kode, push til branch
+2. SSH til VPS: `cd ~/mayo-ai-os && git pull && ./deploy.sh`
+   ELLER GitHub web-UI → Actions → Deploy backend → Run workflow
 
 ---
 
