@@ -46,6 +46,26 @@ press fra smoke-lekkasjen.
 
 ---
 
+## 🎯 (2026-06-23 14:20) — Lyd-upload krasjet på Claude-JSON («Expecting ',' delimiter»)
+
+Mayo testet IVF-opptak → rød feil `Expecting ',' delimiter: line 13 col 120`.
+Rotårsak: `claude_extract` (meeting_module.py:290) gjorde `json.loads(raw)` på
+Claude-output som av og til er litt ugyldig JSON. Pipelinen kastet → status=
+`failed`, selv om **transkriptet allerede var lagret** (status `analyzing` før
+analysen). To fixer:
+- **Frontend (LIVE, merge `0055913`):** «📄 Vis transkript» vises nå også i
+  feil-tilstand (når `meetingId` finnes) → Mayo får lest opptaket selv om
+  uttrekket feilet. `capture.jsx`.
+- **Backend (`b111fa1`, IKKE deployet — krever `./deploy.sh`):** `_loads_lenient`
+  (tolererer trailing commas / ledetekst / brace-trim) + pipelinen wrapper
+  `claude_extract` i try/except → ved feil: status=`done`, tomt uttrekk (0
+  oppgaver), `analyze_degraded`-event, transkript intakt. Aldri rød feil igjen.
+
+**⚠️ Backend-deploy gjenstår:** `cd ~/mayo-ai-os && ./deploy.sh` (auto-deploy-
+push-trigger fjernet i `19a41ba`). AST OK, ikke kjørt i prod ennå.
+
+---
+
 ## 🎯 (2026-06-23 13:01) — Vis transkript etter privat lyd-opptak (merge `fc98c54`)
 
 Mayo testet lyd-pipelinen og ville lese transkriptet (ligger i Postgres
