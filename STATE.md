@@ -4,7 +4,7 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-23 13:55 · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.30 OOM-fix smoke-lekkasje
+**Sist oppdatert:** 2026-06-23 14:10 · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.30.1 push-trigger fjernet
 
 ## 🎯 Nyeste (2026-06-23 13:55) — OOM-diagnose: chromium-lekkasje var rotårsak (`03301ae`/`af1c4a8`)
 
@@ -37,12 +37,16 @@ press fra smoke-lekkasjen.
 - db-api restart: Whisper lastet 7s, MemoryPeak 3.22 GB, helsesjekk
   grønn, RAM 2.6 GB tilgjengelig (var 1.6 GB før cleanup)
 
-**Gjenstår (krever Mayo's valg):**
-- Dobbel-deploy: deploy-backend.yml har `concurrency.cancel-in-progress:
-  false` så Action-en koordinerer med seg selv, men hvis Mayo kjører
-  `./deploy.sh` manuelt samtidig som push-trigger fyrer, har vi to
-  parallelle restarter. Mulig fiks: lock-fil i deploy.sh, eller fjerne
-  push-triggeren fra workflow.
+**Push-trigger fjernet (`19a41ba`):** Mayo valgte å fjerne push-trigger
+fra `.github/workflows/deploy-backend.yml`. `workflow_dispatch` beholdt
+(web-UI + `gh workflow run`). Manuell `./deploy.sh` på VPS uendret.
+Effekt: ingen automatiske Action-deploys lenger → ingen parallelle
+restarter → ingen OOM-risiko fra dobbel-Whisper-load.
+
+**Deploy-workflow nå:**
+1. Skriv kode, push til branch
+2. SSH til VPS: `cd ~/mayo-ai-os && git pull && ./deploy.sh`
+   ELLER GitHub web-UI → Actions → Deploy backend → Run workflow
 
 ---
 
