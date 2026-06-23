@@ -4,9 +4,101 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-22 23:30 · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.28 Livsplanlegger UX-rewrite
+**Sist oppdatert:** 2026-06-23 13:55 · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.30 OOM-fix smoke-lekkasje
 
-## 🎯 Nyeste (2026-06-22 23:30) — Livsplan UX-rewrite (`90df59c` + `95a3cec` + `d9de5ec`)
+## 🎯 Nyeste (2026-06-23 13:55) — OOM-diagnose: chromium-lekkasje var rotårsak (`03301ae`/`af1c4a8`)
+
+**Trigger:** Mayo: «Fiks OOM-kræsj i backend-auto-deploy (db-api SIGKILL ved
+Whisper-last)». Deploy-backend.yml feilet 17. juni 11:09 med exit 137.
+
+**Diagnose (les-først):**
+- **35 chromium-prosesser** fra smoke-cron lekket (etime 5d12h) →
+  spiste 2.6 GB RAM
+- Ollama gemma3:4b spiser 4.3 GB → bare 1.6 GB tilgjengelig før cleanup
+- db-api MemoryHigh=3GB/MemoryMax=4GB, peak 3.22 GB (strupes, men kræsjer
+  hvis swap+RAM begge fulle)
+- Lazy-load Whisper var allerede aktivert (20s pre-warm-timeout, faller
+  tilbake til lazy-load)
+- Swap (4 GB) er aktivt + i fstab — overlever reboot
+
+**Spor A (lazy-load) var allerede gjort.** Rotårsak var Spor B — system-
+press fra smoke-lekkasjen.
+
+**Fiks:**
+1. Drepte alle lekkede chromium-prosesser (`pkill -9 -f chrome-headless-
+   shell`) → frigjorde 800+ MB umiddelbart
+2. `smoke/lib/runner.js` (`af1c4a8`): per-test page+context cleanup i
+   finally, browser.close() med 10s Promise.race-timeout, kill-9 safety-
+   net etter run. Hindrer at lekkasjen kommer tilbake.
+
+**Verifisert:**
+- Smoke 16/16 pass etter fix
+- 0 chromium-prosesser igjen etter run (var 38 før)
+- db-api restart: Whisper lastet 7s, MemoryPeak 3.22 GB, helsesjekk
+  grønn, RAM 2.6 GB tilgjengelig (var 1.6 GB før cleanup)
+
+**Gjenstår (krever Mayo's valg):**
+- Dobbel-deploy: deploy-backend.yml har `concurrency.cancel-in-progress:
+  false` så Action-en koordinerer med seg selv, men hvis Mayo kjører
+  `./deploy.sh` manuelt samtidig som push-trigger fyrer, har vi to
+  parallelle restarter. Mulig fiks: lock-fil i deploy.sh, eller fjerne
+  push-triggeren fra workflow.
+
+---
+
+## 🎯 (2026-06-23 11:06) — Søk runde 2: streng bokstavelig matcher + dedupe (merge `881fd67`)
+
+Mayo testet de 13 fiksene (bra!), eneste gjenstående: søk. «mat» ga fortsatt
+random treff fordi matcheren tillot 1-edit ord-treff («mat»↔«man»). **Fjernet
+edit-avstand helt** — hvert søkeord må nå finnes som bokstavelig delstreng i
+tittel/område/tagger/tekst (tittel-vektet relevans). **Også:** dedupe av
+resultater på innholds-nøkkel (tittel+område+frister) — Tasks-IA-migreringen
+la samme oppgave i både `/items` og `/tasks` → identisk treff vist to ganger.
+Commit `aac108f` → merge `881fd67`. Build grønt, frontend-deploy success.
+`searchScore()` erstattet `fuzzyScore`/`editDistanceCapped` (today.jsx).
+
+---
+
+## 🎯 (2026-06-23 10:43) — Livsplan 13-bug UX-batch LIVE (merge `d6ab721`, PR #19)
+
+**Trigger:** Mayo feilmeldte 13 UX-bugs med screenshots mot live mayooran.com
+(Livsplanlegger). Planlegger-sesjonen delegerte fiksene til en isolert
+worktree-agent, gjennomgikk diffen, merget til `feat/whoop-redesign` →
+auto-deploy grønt. **Alle 13 live.** Kompilerings-verifisert, ikke nettleser-
+testet — Mayo tester på ekte enhet.
+
+| # | Bug | Rotårsak / fix |
+|---|-----|----------------|
+| 5 | Dag/natt gjorde ingenting | Invert-CSS lå i `App.jsx ShellLayout` (aldri mountet). Flyttet til `globals.css` (alltid lastet) |
+| 1 | Livets puls overlappet | `L0Puls position:absolute` lakk ut → bruker in-flow `PulseStripToday` |
+| 6 | Søk traff alt | `fuzzyScore` matchet 3-tegns vindu overalt → omskrevet (eksakt substring + ord-lengde-bevisst, fuzzy kun ≥4 tegn) |
+| 7/8 | Prio-dott-overlapp + sortering | ≈-badge → bunn; la til sortering (relevans/frist/opprettet ↑↓) + prio/område-filtre |
+| 10 | Jobb/Obs BYGG i Livsplan | Filtrerer `track==='jobb'`/`area==='obs_bygg'` ut av ALLE visninger + teller. Privat-only |
+| 11 | Global topp-nav støy | Skjuler skall-nav på `/livsplan` + diskret «‹ Mayo OS»-hjemknapp (ikke innelåst) |
+| 9 | ⋮ over ring + død legende | ⋮ flyttet ut av ring; status-legende filtrerer område-kort |
+| 4 | «Gjør når» låst | Var hardkodet 20. jun → ekte dato-velger, «ikke planlagt» når tom |
+| 3 | Swipe-lukk + autolagre | Drag-fra-hvor-som-helst (kun ved scroll-topp). Delvis: ikke full outbox per felt (patch lagrer hvert felt optimistisk m/ ærlig toast) |
+| 12 | Desktop høyre-panel kuttet | Uttrekkbar skuff (⤢ → 540px, titler wrapper) |
+| 13 | Mobil/desktop-paritet | Revidere på mobil-nav + Søk på desktop |
+
+**10 commits** (`5c84277`…`581102b`) på `claude/confident-noether-lpacih` →
+merge `d6ab721`. Build grønt (PageLivsplanV12 197 KB). Frontend deploy-run
+`d6ab721` = success.
+
+**Også (Mayo):** Vercel-GitHub-integrasjonen disconnectet → ikke flere
+ubrukte previews / bot-kommentar-spam. Prod var aldri på Vercel (VPS-only).
+
+**Annet denne sesjonen:**
+- Backend `e193017`: fix feil «timer siden» på samme-dags Strava-økter (tid-
+  på-døgn strippet i `/api/training`). Deployet.
+- CI-fix `f8be4c5`: `curl|head` SIGPIPE (exit 23) i deploy-verifisering →
+  capture-then-slice. (Etterfølgende deploy-run OOM-killet db-api ved Whisper-
+  last under restart — infra/timing, ikke kode.)
+- `HANDOVER-PT-HEALTH-AUDIT.md` (`a2eeadf`) → terminal-sesjonen kjørte Fase A–E.
+
+---
+
+## 🎯 (2026-06-22 23:30) — Livsplan UX-rewrite (`90df59c` + `95a3cec` + `d9de5ec`)
 
 **Mandat:** Mayo: «ta en re-vurdering av hele UX i livsplanlegger ... det
 er den jeg kommer til å bruke aller mest». «ikke X øverst i skjerm som
