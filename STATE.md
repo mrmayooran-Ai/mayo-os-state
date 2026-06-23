@@ -4,9 +4,22 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-23 10:43 · **Av:** Claude (planlegger-session) · **Versjon:** v0.29 Livsplan 13-bug UX-batch
+**Sist oppdatert:** 2026-06-23 11:06 · **Av:** Claude (planlegger-session) · **Versjon:** v0.29.1 søk-fiks runde 2
 
-## 🎯 Nyeste (2026-06-23 10:43) — Livsplan 13-bug UX-batch LIVE (merge `d6ab721`, PR #19)
+## 🎯 Nyeste (2026-06-23 11:06) — Søk runde 2: streng bokstavelig matcher + dedupe (merge `881fd67`)
+
+Mayo testet de 13 fiksene (bra!), eneste gjenstående: søk. «mat» ga fortsatt
+random treff fordi matcheren tillot 1-edit ord-treff («mat»↔«man»). **Fjernet
+edit-avstand helt** — hvert søkeord må nå finnes som bokstavelig delstreng i
+tittel/område/tagger/tekst (tittel-vektet relevans). **Også:** dedupe av
+resultater på innholds-nøkkel (tittel+område+frister) — Tasks-IA-migreringen
+la samme oppgave i både `/items` og `/tasks` → identisk treff vist to ganger.
+Commit `aac108f` → merge `881fd67`. Build grønt, frontend-deploy success.
+`searchScore()` erstattet `fuzzyScore`/`editDistanceCapped` (today.jsx).
+
+---
+
+## 🎯 (2026-06-23 10:43) — Livsplan 13-bug UX-batch LIVE (merge `d6ab721`, PR #19)
 
 **Trigger:** Mayo feilmeldte 13 UX-bugs med screenshots mot live mayooran.com
 (Livsplanlegger). Planlegger-sesjonen delegerte fiksene til en isolert
