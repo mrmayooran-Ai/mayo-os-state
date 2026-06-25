@@ -4,9 +4,50 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-23 · **Av:** Claude (terminal) · **Versjon:** Privat møte-paritet + hybrid Spør Jarvis
+**Sist oppdatert:** 2026-06-25 · **Av:** Claude (terminal) · **Versjon:** Sovereignty-audit DEPLOYET (`f39b4bd` live) + suverenitets-smoke-test som vakt
 
-## 🎯 Nyeste (2026-06-23) — Privat møte → Obs BYGG-paritet + hybrid Spør Jarvis (BE `a7f7eb3` + FE merget `a5f7fad`)
+## 🎯 Nyeste (2026-06-25) — Sovereignty-fixene LIVE + ny suverenitets-smoke-test (`59b000a` PUSHET)
+
+> **Status:** Alle sovereignty-fiksene fra audit-en under er nå **DEPLOYET** — HEAD `f39b4bd` kjører i prod (fersk PID, helsesjekk grønn). Privat→Obs BYGG-lekkasjen er lukket på backend-kilden i ALLE live jobb-feeds. I tillegg: ny **suverenitets-smoke-test** (`smoke/tests/17-sovereignty-private-leak.js`, commit `59b000a`) lagt til den eksisterende `*/15`-Playwright-cron-en (`mayo-smoke.sh`).
+
+**Hva smoke-testen gjør (grunnsannhet fra prod, ingen mutasjon):**
+- Finner et ekte privat møte via `/meeting?include_private=true`, henter dets action-item-id-er.
+- Påstår at møtet + items lekker til INGEN jobb-feed: `/meeting` (default), `/action-items`, `/tasks/unified` (privat MÅ være `is_private`-flagget — uflagget = selve 2026-06-25-hendelsen), `/meeting-graph`, `/graph/unified`.
+- Brudd → smoke flipper RØDT → web-push via `smoke-flip-push.py`. En fremtidig regresjon som gjenåpner lekkasjen fanges innen 15 min, ikke ved at Mayo ser en IVF-task på jobb-tavla.
+- Ingen privat møte i prod → pass (logger «ingenting å verifisere»).
+
+**Verifisert:** `node -e require(...)` laster modulen rent; følger samme auth-mønster som test 14 (mint session-cookie på `.mayooran.com` → følger til `db.mayooran.com`). Selve cron-kjøringen verifiseres ved neste `*/15`-slot på VPS.
+
+---
+
+## 🎯 Tidligere (2026-06-25) — Komplett privat→Obs BYGG sovereignty-audit (BE `b11d96d`+`11d3565`+`ec58f66`, nå DEPLOYET via `f39b4bd`)
+
+> **Status:** 3 backend-commits pushet til `claude/confident-noether-lpacih` — **NÅ DEPLOYET** (HEAD `f39b4bd` live). Kun AST/inspeksjon-verifisert (3.11-parser gir kjent falsk PEP701-feil på server.py:756/865 — IKKE mine linjer). Ingen migration. Ingen frontend-endring nødvendig (alle live Obs-flater får nå backend-filtrert data; FE home-filter + ObsGraph journal-drop allerede på plass).
+
+**Trigger:** Full audit etter at private IVF-møte-action-items lakk inn på Obs BYGG (delvis fikset i `743789a`/FE `9b0d0fd`). Mål: tette ALLE work-flater mot private data (is_private-møter, track=privat, sensitive).
+
+**Funn + fiks (alle på `is_private`-kilden, fail-closed):**
+- `/meeting-graph` (live Obs GRAF): ekskluderte IKKE is_private — kun heuristisk tag/term-blocklist. Privat møte uten magic-words lakk noder/entities/tags. → `b11d96d` ekskluderer is_private (+ semantic-nabo-subquery).
+- `/meeting/entities` + `/meeting/assignees` + `/meeting-tags` (ObsDetail/PageObs autocomplete): aggregerte over ALLE møter inkl. private → person-/klinikknavn, assignees, tags lakk. → `b11d96d` ekskluderer is_private.
+- `/graph/unified` + `/search/cross-domain` (work-URL'd, men kun døde desktop-routes i dag): meeting-halvdel uten is_private-filter; `/graph/unified` manglet edge-post-filter → kunne lekke privat møte-id som edge-target. → `11d3565` ekskluderer is_private (inkl. semantic-nabo-subqueries via `_priv_clause`).
+- `/action-items/backfill`: hardkodet `track='jobb'` for ALLE done-møter inkl. private (mislabel; contained av consumer-join men skjørt). → `ec58f66` skipper is_private (primær-pipeline lager private items korrekt som track='privat').
+
+**Verifisert CLEAN (ingen endring):**
+- `/action-items` (Oppgaver-liste/Kanban/assignee-stats): allerede is_private-filtrert i `743789a`. Autoritativ for live Oppgaver-fane.
+- `/tasks/unified`: eksponerer is_private+track (`75aa081`); FE home-filter (`9b0d0fd`/PageObs:100) fail-closed (kun source=meeting + is_private===false/bekreftet jobb-møte).
+- `/meeting` (Møter+Kalender i PageObs): default `include_private=false` ✓.
+- `/meeting/{id}`, /notes, /tags, /summary etc.: single-meeting, user-scoped — et jobb-møtes egne data = jobb-data ✓.
+- `/calendar` (calendar_module): viser private møter, MEN kun konsumert av personlige flater (PageHjem/PageKalender/Timeline), IKKE Obs BYGG. Korrekt.
+
+**Judgment call — voice-journal i /action-items:** Voice-journal-action-items opprettes BEVISST med `track='jobb'` (journal_module:1321, assignee default «Max») og vises i Obs BYGG by design — kun de uttrukne *handlingspunktene* (tittel+assignee), aldri journal-innhold (raw_text/mood/themes). IKKE en lekkasje → BEHOLDT. Residual: hvis en voice-journal tilfeldig uttrekker et privat-klingende punkt, vises det i Obs BYGG (de er hardkodet jobb/non-sensitive). Anbefaling (ikke implementert): area-klassifisering ved kilden.
+
+**Residual risiko / ikke-live:** `/meeting/prep` (ingen FE-caller) blander private prior-møter + journal i prep-note uansett target-møtes privacy — vil lekke HVIS wiret til Obs senere. Døde desktop-routes `routes/obs/MeetingGraph.jsx` (→/graph/unified) + `MeetingCalendar.jsx` (→tasks/unified ufiltrert) er importert men ikke montert; trygt nå (graph backend-fikset), men re-mount av MeetingCalendar uten filter ville vise private møte-tasks.
+
+**Konklusjon:** Etter disse + de allerede-pushede fixene er ALLE live Obs BYGG-flater lukket for private data. Gjenstående er døde/uwirede endepunkter (flagget over), ikke live-lekkasjer.
+
+---
+
+## 🎯 Tidligere (2026-06-23) — Privat møte → Obs BYGG-paritet + hybrid Spør Jarvis (BE `a7f7eb3` + FE merget `a5f7fad`)
 
 > **Status:** FE merget til prod (`a5f7fad`, PR #22) etter planlegger-review av begge personvern-invariantene (privat lekker ikke til Obs BYGG/vault; privat→sky kun ved eksplisitt `force_cloud`). **BE `a7f7eb3` GJENSTÅR deploy:** `cd ~/mayo-ai-os && git pull origin claude/confident-noether-lpacih && ./deploy.sh` — aktiverer avkryssing (action_item `item_id`-join) + `force_cloud`. Før deploy: checkboxer deaktivert (graceful), `force_cloud` ignoreres trygt (Pydantic dropper ekstra-felt).
 
