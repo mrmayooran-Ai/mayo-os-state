@@ -4,9 +4,21 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-25 · **Av:** Claude (terminal) · **Versjon:** Sovereignty-audit DEPLOYET (`f39b4bd` live) + suverenitets-smoke-test som vakt
+**Sist oppdatert:** 2026-06-25 · **Av:** Claude (terminal) · **Versjon:** Sovereignty-audit DEPLOYET (`f39b4bd` live) + suverenitets-smoke-test som vakt + handover kommandopalett
 
-## 🎯 Nyeste (2026-06-25) — Sovereignty-fixene LIVE + ny suverenitets-smoke-test (`59b000a` PUSHET)
+## 🎯 Nyeste (2026-06-25) — Handover skrevet: kommandopalett (⌘K) + lynsøk (`e2434ca`, FE PR #23 draft)
+
+> **Status:** Handover-spec til Elmars skrevet etter at Mayo sammenlignet UX/muligheter mot reflect.app. Funn: vi er foran på suverenitet/dybde (helse, lokal-AI-ruting, norsk stemme, agentisk Jarvis), men bak på *opplevd hastighet/friksjon*. Reflects «premium» = keyboard-first kommandopalett + instant søk. Det er det enkleste grepet med størst løft, og rører ikke personvern-lagene.
+>
+> **Leveranse:** `mayo-os/HANDOVER-COMMAND-PALETTE.md` (commit `e2434ca` på `claude/confident-noether-lpacih`, draft PR #23 mot `feat/whoop-redesign`). Lagt på feature-branch bevisst — doc-only skal ikke trigge prod-rebuild. **Ingen kode-endring enda** — venter på at Elmars implementerer v1.
+>
+> **v1-scope (lav risiko, ingen nye deps, tokens.ts urørt):** global `⌘K`-overlay (montert i App.jsx), naviger + hurtighandlinger + instant klient-side literal-søk over forhåndslastede items (`/tasks/unified`) + møter (`/meeting`, default `include_private=false`). Gjenbruker `searchScore` (flyttes til `src/lib/search.js`) + `api.js`-wrapper. 🔴 Suverenitet: private møter ekskludert by default, `is_private`-items skjult i v1 → null jobb/privat-lekkasje. Inkluderer ny `smoke/tests/18-command-palette.js`.
+>
+> **Fase 2 (bak 🛑 STOPP, Mayos «Kjør»):** semantisk cross-domain (`/search/cross-domain`), inline `⌘J`-AI (rutet via Jarvis, privat→Gemma), `[[backlinks]]` som primitiv. Anbefalt rekkefølge etter v1: (2) inline-AI, (3) Jarvis-latens (streaming).
+
+---
+
+## 🎯 Tidligere (2026-06-25) — Sovereignty-fixene LIVE + ny suverenitets-smoke-test (`59b000a` PUSHET)
 
 > **Status:** Alle sovereignty-fiksene fra audit-en under er nå **DEPLOYET** — HEAD `f39b4bd` kjører i prod (fersk PID, helsesjekk grønn). Privat→Obs BYGG-lekkasjen er lukket på backend-kilden i ALLE live jobb-feeds. I tillegg: ny **suverenitets-smoke-test** (`smoke/tests/17-sovereignty-private-leak.js`, commit `59b000a`) lagt til den eksisterende `*/15`-Playwright-cron-en (`mayo-smoke.sh`).
 
