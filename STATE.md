@@ -4,9 +4,54 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-26 19:55 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.37 Jarvis streaming Fase 1 KOMPLETT (BE + FE + smoke #20)
+**Sist oppdatert:** 2026-06-26 20:18 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.39 A4 PDF-eksport (#2) LEVERT
 
-## 🎯 Nyeste (2026-06-26 19:55) — Jarvis streaming Fase 1 KOMPLETT
+## 🎯 Nyeste (2026-06-26 20:18) — A4 PDF-eksport av møtereferat LEVERT
+
+**Trigger:** HANDOVER-MEETING-PDF.md (Mayos prioritet #2). Klient-side
+print → «Lagre som PDF». Privat IVF/helse må aldri server-rendres.
+
+### Levert (FE `95d8353` + smoke `fa0b2b4`)
+
+`src/mobile/pages/ObsDetail.jsx`:
+- Print-knapper i header-actionrow (ved siden av 🗑), KUN ved status='done':
+  🖨 (kort referat) + +TXT (m/ transkript, vises bare hvis segmenter finnes)
+- `MeetingReferat`-komponent: A4-layout, blekk-på-hvitt, Georgia serif.
+  Egen CSS-blokk så referatet ikke arver mørkt tema. Seksjoner i
+  handover-rekkefølge (sammendrag → temaer → beslutninger → tall &
+  datoer → handlingspunkter → entiteter → [transkript hvis valgt]).
+  Null-disiplin: tomme felter rendres ikke (ingen «—»-headers).
+- Return restrukturert til Fragment med to søsken: skjerm-DIV
+  (data-print="screen-only") + print-DIV (.obs-print-root). @media
+  print veksler dem; ingen React-portals.
+- `doPrintExport(withTranscript)`: setter `document.title` til
+  «Referat — {title} — {dateStr}» for fornuftig PDF-filnavn,
+  `window.print()`, restaurerer tittel på `afterprint`.
+
+### 🔴 Suverenitet
+- Genereres KUN i nettleseren fra data allerede i ObsDetail-state.
+- Smoke #21 stubber `window.print` + sniffer `fetch`-URLer, asserter
+  ZERO kall til `/export|/pdf|/print|/render` og eksterne PDF-tjenester
+  (DocRaptor/PDFShift/etc).
+- Privat referat bærer 🔒 Privat-markør og «Ikke del videre»-foot.
+- tokens.ts urørt, ingen nye deps (`git diff package.json` tom).
+
+Smoke #21 grønn isolert: 4s, 4000 tegn print-rot, 1 nettverkskall i
+klikk-veien (ikke `/export|/pdf` — sannsynligvis bakgrunns-`/qa`-load).
+
+## 🎯 Forrige (2026-06-26, planlegger) — Tre Fase 3-handovers FORBEREDT (alle 🛑 GATED — vent på «Kjør»)
+
+> **Status:** Mayo: «bare forbered disse imens så er de klare». Tre spec'er skrevet, alle tydelig 🛑-merket — Elmars skal IKKE bygge før Mayo sier «Kjør». Alle BE+FE, ingen nye deps. Ligger i backend-repo-rot.
+>
+> **3a — `HANDOVER-JARVIS-CLOUD-STREAMING.md`** (Jarvis Fase 2). Streamer sky/Claude-ruten i `/meeting/{id}/ask`. Kjerne: **de-anon-sikker streaming** — Anonymizer bruker `⟦PERSON_1⟧`-klammer (anonymizer.py:152); buffer-regel emitter kun frem til siste ÅPNE `⟦` så en split-placeholder ALDRI lekker rå. Gjenbruker Elmars' SSE fra Fase 1 (`f59cf0d`). Smoke #23 asserter at strømmen aldri inneholder `⟦`/`⟧`.
+>
+> **3b — `HANDOVER-INLINE-CMDJ.md`** (inline AI på markert tekst). Global ⌘J → handlings-popover (Forklar/Oppsummer/Skriv om/Utvid) → streamet svar. 🔴 **Ruten bestemmes av FLATEN, fail-closed til lokal:** `/obs-bygg/*`=jobb→Claude-anon; alt annet (inkl. tvil)=privat→Gemma. Nytt `/jarvis/inline?stream=1`-endepunkt som gjenbruker meeting_ask-rutingshjelperne — IKKE `/chat/web/stream` (ubetinget sky). v1 kopier-only (ingen auto-erstatt). Smoke #24.
+>
+> **3c — `HANDOVER-PALETTE-PRIVATE-MEETINGS.md`** (private møter søkbare i palett). **To fysisk adskilte søkegrener:** jobb `meeting` (`is_private=FALSE`→`/obs-bygg`) URØRT; ny `meeting_private` (`is_private=TRUE`→`/livsplan#privatmote={id}`, 🔒). Krever ny `#privatmote=`-deep-link i app.jsx (speiler eksisterende `#item=`-handler; PageMeetings åpner i dag kun via intern state). FE fail-closed-vakt: 🔒-treff med `/obs-bygg`-URL → dropp. Forutsetter palett Fase 2 levert. Smoke #25.
+>
+> **Avhengighet:** 3a — Jarvis FE-streaming er NÅ LEVERT (se under), så 3a kan tas når Mayo «Kjør». 3c etter palett Fase 2. 3b frittstående. Alle bak 🛑.
+
+## 🎯 Forrige (2026-06-26 19:55) — Jarvis streaming Fase 1 KOMPLETT
 
 **Trigger:** HANDOVER-JARVIS-STREAMING.md (Mayos prioritet #1).
 **Mål:** Drep 80s dødvente under «Jarvis tenker…» på private møter —
@@ -46,7 +91,6 @@ opplevelsen snur fra «hengt» til «skriver».
 - 17/20 grønne (de samme 2 pre-existing: #02 FET-strategi, #15 desktop
   modal). #20 grønn isolert, marginal under suite-last (Gemma cold-start
   konkurrerer); justert `timeoutMs` 180→240s og page-evaluate abort 120→220s.
-
 ## ⚡ Elmars-leveranser observert (planlegger logget — Elmars pushet uten STATE-oppdatering)
 
 > Fanget ved fetch 2026-06-26. Elmars beveger seg raskt; disse er live på branchene men var ikke logget i STATE:
