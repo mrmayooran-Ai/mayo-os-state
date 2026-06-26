@@ -4,11 +4,29 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-26 · **Av:** planlegger (claude.ai) · **Versjon:** v0.35 Handover skrevet: Spør Jarvis token-streaming
+**Sist oppdatert:** 2026-06-26 · **Av:** planlegger (claude.ai) · **Versjon:** v0.36 Handovers skrevet: A4 møte-PDF (#2) + palett Fase 2 semantisk (#3)
 
-## 🎯 Nyeste (2026-06-26, planlegger) — Handover skrevet: Spør Jarvis token-streaming (`HANDOVER-JARVIS-STREAMING.md`)
+## ⚡ Elmars-leveranser observert (planlegger logget — Elmars pushet uten STATE-oppdatering)
 
-> **Status:** Spec til Elmars klar — `mayo-ai-os/HANDOVER-JARVIS-STREAMING.md` (branch `claude/confident-noether-lpacih`). **Ikke implementert enda.** Mayo prioriterte dette som #1 av tre store (foran A4-PDF og palett-Fase-2). Streaming-transport på eksisterende `/meeting/{id}/ask` — ingen nye deps.
+> Fanget ved fetch 2026-06-26. Elmars beveger seg raskt; disse er live på branchene men var ikke logget i STATE:
+> - **Jarvis streaming Fase 1 — BACKEND levert** (`f59cf0d`, meeting_module.py +97): lokal Gemma SSE. **FE-delen gjenstår** (postStream i api.js + AskJarvis token-render — ikke på feat/whoop-redesign enda). Handover-Fase-2 (sky) fortsatt bak 🛑.
+> - **Nav: «Revidere» fjernet fra mobil-NAV** (`0c1ea66`, FE) — 5→4 faner (I dag · Prio · Kladd · Privat møte). Småting #1 ✅.
+> - **Smoke #03 fikset** (`5511a60`, FE): rotårsak = SearchTopbar-mount (ikke «pre-existing/stale» — diagnostisert ordentlig). Småting #2 ✅.
+> - **Gjenstår fra tre-småting:** long-press kontekstmeny-guardrails (#3) — ingen commit observert enda.
+
+## 🎯 Nyeste (2026-06-26, planlegger) — Handovers skrevet: A4 møte-PDF + palett Fase 2 (de to siste i kø)
+
+> **Status:** Mayo ba om begge gjenværende handovers nå (overstyrte just-in-time). Begge spec'er til Elmars klare. **Ikke implementert.** Rekkefølge etter Jarvis-streaming: #2 PDF, #3 palett.
+>
+> **#2 — `mayo-os/HANDOVER-MEETING-PDF.md`** (FE-only, branch `claude/confident-noether-lpacih`). A4-referat-eksport fra ObsDetail. 🔴 **Klient-side `window.print()` + print-CSS — ALDRI server/sky-render for private møter** (privat = IVF/helse; PDF genereres i Mayos nettleser fra data alt i minnet → forlater aldri enheten). Knapp i ObsDetail-header ved 🗑, kun `status==='done'`. Referat = sammendrag/temaer/beslutninger/tall/handlingspunkter/entiteter; transkript AV som default; 🔒-markør på private referat. Ingen dep. Smoke #21.
+>
+> **#3 — `mayo-ai-os/HANDOVER-PALETTE-PHASE2.md`** (BE+FE). Semantisk søk i Mayos EGNE data i ⌘K via eksisterende pgvector `/search/cross-domain` (server.py:1388). 🔴 **Embedding skjer LOKALT** (nomic-embed på localhost, `_embed_query`:1372) → privat tekst forlater aldri VPS — det er fundamentet som gjør egen-privat-søk trygt. BE: `note.embedding vector(768)` + embed ved PATCH + backfill + `note`-type i cross-domain (`url:'/livsplan'`). FE: debounced bakgrunns-«Dypsøk»-seksjon, aldri blokker v1-treff. Fail-closed ruting: journal→`/brain` 🔒, note→`/livsplan` 🔒, meeting→`/obs-bygg` (kun jobb ved kilden — is_private-filteret URØRT). Besvarer v1-handoverens åpne spørsmål (ja, finn egne private notater — lokalt embedet, privat-rutet). Smoke #22.
+>
+> **🛑 Gates:** PDF — aldri server/sky-render for privat (hard grense). Palett — stopp før Fase 3 (inline ⌘J) + før private møter gjøres søkbare.
+
+## 🎯 Forrige (2026-06-26, planlegger) — Handover skrevet: Spør Jarvis token-streaming (`HANDOVER-JARVIS-STREAMING.md`)
+
+> **Status:** Spec til Elmars klar — `mayo-ai-os/HANDOVER-JARVIS-STREAMING.md` (branch `claude/confident-noether-lpacih`). **BE Fase 1 LEVERT** (`f59cf0d`); **FE-streaming gjenstår** (postStream + AskJarvis token-render). Mayo prioriterte dette som #1 av tre store (foran A4-PDF og palett-Fase-2). Streaming-transport på eksisterende `/meeting/{id}/ask` — ingen nye deps.
 >
 > **Hvorfor:** «Spør Jarvis» tar ~60–90s på lokal Gemma med død «Jarvis tenker…»-puls. Reflect-gapet var *opplevd hastighet*; dette er skarpeste forekomst. Token-streaming = samme svar/ruting/latens, men opplevelsen snur fra «hengt» til «skriver».
 >
