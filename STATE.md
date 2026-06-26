@@ -4,9 +4,80 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-26 14:42 · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.34 I dag-fanen declutter LEVERT
+**Sist oppdatert:** 2026-06-26 19:55 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.37 Jarvis streaming Fase 1 KOMPLETT (BE + FE + smoke #20)
 
-## 🎯 Nyeste (2026-06-26 14:42) — «I dag» declutter (FE `fb841e6`)
+## 🎯 Nyeste (2026-06-26 19:55) — Jarvis streaming Fase 1 KOMPLETT
+
+**Trigger:** HANDOVER-JARVIS-STREAMING.md (Mayos prioritet #1).
+**Mål:** Drep 80s dødvente under «Jarvis tenker…» på private møter —
+opplevelsen snur fra «hengt» til «skriver».
+
+### Levert
+- **BE** `f59cf0d` (`meeting_module.py` +97):
+  `_ask_local_gemma_stream` (Ollama stream:True). `meeting_ask` tar nå
+  `Request` og sjekker `?stream=1` — KUN på lokal-rute (sky-rute beholder
+  dict-svar til Fase 2, fordi de-anon-sikker buffering kreves der).
+  SSE-events: `meta` (model+sensitive) → `delta` (token) → `done`
+  (persistering ferdig) eller `error` (ærlig). Persistering = identisk med
+  ikke-stream-grenen (Fernet hvis sensitive). `X-Accel-Buffering: no` så
+  nginx ikke buffrer.
+- **FE** `eb2ec15` (`api.js` + `AskJarvis.jsx`):
+  Ny `postStream()` parser SSE-rammer og forwarder named events. Behold
+  `post`/`get`/`fetchJson` urørt. `AskJarvis.submit()` predikat:
+  `willStream = !forceCloud && defaultSensitive && !IS_DEMO`. Sky/Obs BYGG
+  beholder dagens ikke-stream-post → ingen regresjon. Optimistisk QA-rad
+  appendes med `answer:''`, oppdateres token-for-token. Pulsen vises kun
+  til første delta. Pulserende caret etter siste token mens streamen
+  fortsetter. Streaming-feil → fjern halvferdig rad + ærlig askErr.
+- **Smoke** `39ee2c8` (#20 + per-test `timeoutMs`-override):
+  E2E mot privat møte; assert `meta → delta(≥1) → done`. Suverenitets-
+  røyk: meta.model inneholder 'lokal'/'gemma' (IKKE 'sky'). Verifisert
+  grønn isolert med modell `gemma3:4b-it-q4_K_M (lokal)`.
+
+### 🔴 Suverenitet
+- Lokale tokens forlater aldri VPS-en (Gemma localhost:11434).
+- Stream-predikatet håndhevet i BÅDE BE og FE — sky kan ikke havne i
+  stream-grenen selv om brukeren forsøker.
+- RouteBadge 🔒 lokal tegnes fra `meta` FØR første token.
+- **Fase 2 (sky-streaming) fortsatt bak 🛑** — venter på Mayos «Kjør»
+  etter de-anon-sikker buffering er bygget.
+
+### Smoke-status
+- 17/20 grønne (de samme 2 pre-existing: #02 FET-strategi, #15 desktop
+  modal). #20 grønn isolert, marginal under suite-last (Gemma cold-start
+  konkurrerer); justert `timeoutMs` 180→240s og page-evaluate abort 120→220s.
+
+## ⚡ Elmars-leveranser observert (planlegger logget — Elmars pushet uten STATE-oppdatering)
+
+> Fanget ved fetch 2026-06-26. Elmars beveger seg raskt; disse er live på branchene men var ikke logget i STATE:
+> - **Jarvis streaming Fase 1 — KOMPLETT** (BE `f59cf0d` + FE `eb2ec15` + smoke `39ee2c8`). Fase 2 (sky) fortsatt bak 🛑.
+> - **Nav: «Revidere» fjernet fra mobil-NAV** (`0c1ea66`, FE) — 5→4 faner (I dag · Prio · Kladd · Privat møte). Småting #1 ✅.
+> - **Smoke #03 fikset** (`5511a60`, FE): rotårsak = SearchTopbar-mount (ikke «pre-existing/stale» — diagnostisert ordentlig). Småting #2 ✅.
+> - **Gjenstår fra tre-småting:** long-press kontekstmeny-guardrails (#3) — ingen commit observert enda.
+
+## 🎯 Nyeste (2026-06-26, planlegger) — Handovers skrevet: A4 møte-PDF + palett Fase 2 (de to siste i kø)
+
+> **Status:** Mayo ba om begge gjenværende handovers nå (overstyrte just-in-time). Begge spec'er til Elmars klare. **Ikke implementert.** Rekkefølge etter Jarvis-streaming: #2 PDF, #3 palett.
+>
+> **#2 — `mayo-os/HANDOVER-MEETING-PDF.md`** (FE-only, branch `claude/confident-noether-lpacih`). A4-referat-eksport fra ObsDetail. 🔴 **Klient-side `window.print()` + print-CSS — ALDRI server/sky-render for private møter** (privat = IVF/helse; PDF genereres i Mayos nettleser fra data alt i minnet → forlater aldri enheten). Knapp i ObsDetail-header ved 🗑, kun `status==='done'`. Referat = sammendrag/temaer/beslutninger/tall/handlingspunkter/entiteter; transkript AV som default; 🔒-markør på private referat. Ingen dep. Smoke #21.
+>
+> **#3 — `mayo-ai-os/HANDOVER-PALETTE-PHASE2.md`** (BE+FE). Semantisk søk i Mayos EGNE data i ⌘K via eksisterende pgvector `/search/cross-domain` (server.py:1388). 🔴 **Embedding skjer LOKALT** (nomic-embed på localhost, `_embed_query`:1372) → privat tekst forlater aldri VPS — det er fundamentet som gjør egen-privat-søk trygt. BE: `note.embedding vector(768)` + embed ved PATCH + backfill + `note`-type i cross-domain (`url:'/livsplan'`). FE: debounced bakgrunns-«Dypsøk»-seksjon, aldri blokker v1-treff. Fail-closed ruting: journal→`/brain` 🔒, note→`/livsplan` 🔒, meeting→`/obs-bygg` (kun jobb ved kilden — is_private-filteret URØRT). Besvarer v1-handoverens åpne spørsmål (ja, finn egne private notater — lokalt embedet, privat-rutet). Smoke #22.
+>
+> **🛑 Gates:** PDF — aldri server/sky-render for privat (hard grense). Palett — stopp før Fase 3 (inline ⌘J) + før private møter gjøres søkbare.
+
+## 🎯 Forrige (2026-06-26, planlegger) — Handover skrevet: Spør Jarvis token-streaming (`HANDOVER-JARVIS-STREAMING.md`)
+
+> **Status:** Spec til Elmars klar — `mayo-ai-os/HANDOVER-JARVIS-STREAMING.md` (branch `claude/confident-noether-lpacih`). **BE Fase 1 LEVERT** (`f59cf0d`); **FE-streaming gjenstår** (postStream + AskJarvis token-render). Mayo prioriterte dette som #1 av tre store (foran A4-PDF og palett-Fase-2). Streaming-transport på eksisterende `/meeting/{id}/ask` — ingen nye deps.
+>
+> **Hvorfor:** «Spør Jarvis» tar ~60–90s på lokal Gemma med død «Jarvis tenker…»-puls. Reflect-gapet var *opplevd hastighet*; dette er skarpeste forekomst. Token-streaming = samme svar/ruting/latens, men opplevelsen snur fra «hengt» til «skriver».
+>
+> **Kjerneinnsikt (styrer scopet):** lokal Gemma (`_ask_local_gemma`, meeting_module.py:1680) har INGEN anonymisering → streamer trivielt + trygt. Sky/Claude (`_ask_claude_anonymized`:1696) **de-anonymiserer HELE svaret** (`anon.deanonymize(raw)`:1720) → naiv token-streaming kan splitte en placeholder (`PERSON_1`) over to chunks → lekkasje. Derfor: **Fase 1 = KUN lokal-streaming** (default-rute + fail-closed + IVF/helse — og den eneste trygge). **Fase 2 (sky) bak 🛑** — krever de-anon-sikker buffering.
+>
+> **Scope BE+FE:** BE: `?stream=1` → `StreamingResponse` SSE (`meta`→`delta`→`done`/`error`), `_ask_local_gemma_stream` (Ollama `stream:True`, NDJSON-delta), persister kryptert ved `done` (uendret meeting_qa + history). FE: ny `postStream` i `api.js` (SSE-leser, `post` urørt), AskJarvis appender token-for-token, RouteBadge fra `meta` FØR tokens. Obs BYGG/`force_cloud` faller tilbake til dagens ikke-stream `post` til Fase 2 (ingen regresjon). Smoke #20 spesifisert.
+>
+> **🔴 Suverenitet:** lokale tokens forlater aldri VPS (Ollama localhost, samme autentiserte db-kanal); 🔒-RouteBadge før tokens; kryptering + fail-closed uendret. **Fase 2-sky gated nettopp pga. de-anon-split-risiko.**
+
+## 🎯 Forrige (2026-06-26 14:42) — «I dag» declutter (FE `fb841e6`)
 
 **Trigger:** Mayo: «Ny handover: HANDOVER-IDAG-DECLUTTER.md … område-kort
 øverst + kompakt, fjern smart-flisene, flytt Andre visninger+søk ned med
