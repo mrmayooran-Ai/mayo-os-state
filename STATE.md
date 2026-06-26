@@ -4,9 +4,23 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-26 · **Av:** Claude (planlegger) · **Versjon:** v0.32 + handover Kladd-fane skrevet (`8fa9904`)
+**Sist oppdatert:** 2026-06-26 · **Av:** Claude (planlegger) · **Versjon:** v0.32 + 2 handovers i kø: Kladd-fane + «I dag»-opprydding
 
-## 🎯 Nyeste (2026-06-26, planlegger) — Handover skrevet: Kladd-fane (plain-text notater → `[]`-tasks)
+## 🎯 Nyeste (2026-06-26, planlegger) — Handover skrevet: «I dag»-fane opprydding (`d860cbe`, mayo-os)
+
+> **Status:** Spec til Elmars klar — `mayo-os/HANDOVER-IDAG-DECLUTTER.md` (branch `claude/confident-noether-lpacih`). **Ikke implementert enda.** Ren frontend-layout i `today.jsx`, ingen backend/deps.
+>
+> **Mayos tre grep (skjermbilder):** (1) prosjekt-/område-kortene tar for mye plass + skal ØVERST (der reisen starter) → flytt til topp + gjør kompakt; (2) «Andre visninger» (Puls/Kalender/Revider) + søk mangler luft → vertikal rytme; (3) dropp smart-flisene (I dag/Forfalt/Uka/Innboks) → fjernes fra fana.
+>
+> **Ny rekkefølge:** Header → Områder (kompakt, Privat+Jobb, suverenitets-skille intakt) → Brief → Kapasitet+Dagens → Fra innboks → Andre visninger+søk (nederst, med luft). SmartTiles fjernet (kun fra denne fana, ikke slettet fra shared).
+>
+> **Kompakt AreaCard:** dropp forhåndsvis-linja nederst (`Ben A — styrkeøkt` osv.) + stram padding → ~30 % lavere. Fallback til tett-liste kun etter Mayos OK.
+>
+> **🛑 Planlegger-kall (vetoable):** brief/kapasitet/«Fra innboks» beholdt slanke — kutt mer kun etter å spørre Mayo.
+
+---
+
+## 🎯 Tidligere (2026-06-26, planlegger) — Handover skrevet: Kladd-fane (plain-text notater → `[]`-tasks)
 
 > **Status:** Spec til Elmars klar — `HANDOVER-KLADD-NOTES.md` (commit `8fa9904`). **Ikke implementert enda.** Bakgrunn: Mayo fanger løse idéer i Apple TextEdit (plain text) og vil ha samme frihet i Livsplan — en egen «Kladd»-fane der notater lagres som `.md` (som journal, men i egen `MayoVault/notater/`-mappe) og oppgaver høstes rett ut av teksten.
 >
