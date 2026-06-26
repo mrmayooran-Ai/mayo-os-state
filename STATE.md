@@ -4,7 +4,169 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-23 14:10 · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.30.1 push-trigger fjernet
+**Sist oppdatert:** 2026-06-26 10:40 · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.32 kommandopalett v1 LEVERT
+
+## 🎯 Nyeste (2026-06-26 10:40) — Kommandopalett (⌘K) v1 deployet (`ce206a7` FE / `93db5c1` BE)
+
+**Trigger:** Mayo: «Ny handover klar: kommandopalett (⌘K) + lynsøk ...
+Bygg kun v1». HANDOVER-COMMAND-PALETTE.md på branch claude/confident-
+noether-lpacih i mayo-os.
+
+### Levert (FE `ce206a7` på feat/whoop-redesign)
+
+1. **`src/lib/search.js`** (ny) — `searchScore` utløftet fra `today.jsx:153`
+   så Livsplan + paletten deler matcheren. Streng literal-substring
+   (Mayo's `881fd67` bevart). Tester 03/13/14 uberørt.
+2. **`src/shell/CommandPalette.jsx`** (ny, 416 linjer) — overlay-modal +
+   `useCommandPalette()`-hook. ⌘K/Ctrl+K åpner globalt, Esc lukker, ↑/↓/
+   Enter navigerer. Tre seksjoner: Handlinger · Naviger · Søk-treff.
+3. **`src/App.jsx`** — mountet etter `<Routes>` inni `<ToastProvider>` →
+   tilgjengelig på alle ruter.
+4. **`today.jsx`** — import endret til `@/lib/search`, lokal funksjon
+   slettet (22 linjer -).
+
+### 🔴 Suverenitet (handover §Suverenitet pkt 2)
+
+- `/meeting?limit=200` med default `include_private=false` → private
+  møter lastes ALDRI inn i palette-state i v1.
+- `/tasks/unified` items filtreres: `is_private === true` droppes.
+- Møte-treff → `/obs-bygg/meeting/{id}` (kun jobb). Item-treff → ALLTID
+  `/livsplan`. Ingen krysning mulig.
+
+### Levert (BE `93db5c1` på claude/confident-noether-lpacih)
+
+- **`smoke/tests/18-command-palette.js`** — Meta+K åpner, søker «liv»,
+  ≥1 treff, suverenitets-røyk (ingen 🔒). ✓ pass.
+
+### Verifisert (akseptansekriterier)
+
+- ✅ ⌘K/Ctrl+K + Esc · ↑↓Enter · iOS no-zoom · ingen mus nødvendig
+- ✅ Naviger-treff verifisert mot App.jsx (`/assistent` for Jarvis,
+  `/strength` for Styrke siden `/jarvis` og `/styrke` ikke finnes)
+- ✅ Søk < 50ms (pure-memory)
+- ✅ Ingen private treff
+- ✅ Ingen ny dep · tokens.ts urørt
+- ✅ Live: `https://mayooran.com/version.json` → `ce206a7`
+- ✅ Smoke 16/17 (test 02 FET-strategi feilet i cron-runs `08:01`,
+  `08:15`, `08:30` FØR mine endringer — eksisterende issue, ikke regression)
+
+### 🛑 STOPP-gate respektert
+
+Fase 2 (privat-søk / inline ⌘J / `[[backlinks]]`) IKKE bygget. Venter
+på Mayo's «Kjør» på det åpne suverenitets-spørsmålet i handover.
+
+---
+
+## 🎯 (2026-06-25) — Handover skrevet: kommandopalett (⌘K) + lynsøk (`e2434ca`, FE PR #23 draft)
+
+> **Status:** Handover-spec til Elmars skrevet etter at Mayo sammenlignet UX/muligheter mot reflect.app. Funn: vi er foran på suverenitet/dybde (helse, lokal-AI-ruting, norsk stemme, agentisk Jarvis), men bak på *opplevd hastighet/friksjon*. Reflects «premium» = keyboard-first kommandopalett + instant søk. Det er det enkleste grepet med størst løft, og rører ikke personvern-lagene.
+>
+> **Leveranse:** `mayo-os/HANDOVER-COMMAND-PALETTE.md` (commit `e2434ca` på `claude/confident-noether-lpacih`, draft PR #23 mot `feat/whoop-redesign`). Lagt på feature-branch bevisst — doc-only skal ikke trigge prod-rebuild. **Ingen kode-endring enda** — venter på at Elmars implementerer v1.
+>
+> **v1-scope (lav risiko, ingen nye deps, tokens.ts urørt):** global `⌘K`-overlay (montert i App.jsx), naviger + hurtighandlinger + instant klient-side literal-søk over forhåndslastede items (`/tasks/unified`) + møter (`/meeting`, default `include_private=false`). Gjenbruker `searchScore` (flyttes til `src/lib/search.js`) + `api.js`-wrapper. 🔴 Suverenitet: private møter ekskludert by default, `is_private`-items skjult i v1 → null jobb/privat-lekkasje. Inkluderer ny `smoke/tests/18-command-palette.js`.
+>
+> **Fase 2 (bak 🛑 STOPP, Mayos «Kjør»):** semantisk cross-domain (`/search/cross-domain`), inline `⌘J`-AI (rutet via Jarvis, privat→Gemma), `[[backlinks]]` som primitiv. Anbefalt rekkefølge etter v1: (2) inline-AI, (3) Jarvis-latens (streaming).
+
+---
+
+## 🎯 Tidligere (2026-06-25) — Sovereignty-fixene LIVE + ny suverenitets-smoke-test (`59b000a` PUSHET)
+
+> **Status:** Alle sovereignty-fiksene fra audit-en under er nå **DEPLOYET** — HEAD `f39b4bd` kjører i prod (fersk PID, helsesjekk grønn). Privat→Obs BYGG-lekkasjen er lukket på backend-kilden i ALLE live jobb-feeds. I tillegg: ny **suverenitets-smoke-test** (`smoke/tests/17-sovereignty-private-leak.js`, commit `59b000a`) lagt til den eksisterende `*/15`-Playwright-cron-en (`mayo-smoke.sh`).
+
+**Hva smoke-testen gjør (grunnsannhet fra prod, ingen mutasjon):**
+- Finner et ekte privat møte via `/meeting?include_private=true`, henter dets action-item-id-er.
+- Påstår at møtet + items lekker til INGEN jobb-feed: `/meeting` (default), `/action-items`, `/tasks/unified` (privat MÅ være `is_private`-flagget — uflagget = selve 2026-06-25-hendelsen), `/meeting-graph`, `/graph/unified`.
+- Brudd → smoke flipper RØDT → web-push via `smoke-flip-push.py`. En fremtidig regresjon som gjenåpner lekkasjen fanges innen 15 min, ikke ved at Mayo ser en IVF-task på jobb-tavla.
+- Ingen privat møte i prod → pass (logger «ingenting å verifisere»).
+
+**Verifisert:** `node -e require(...)` laster modulen rent; følger samme auth-mønster som test 14 (mint session-cookie på `.mayooran.com` → følger til `db.mayooran.com`). Selve cron-kjøringen verifiseres ved neste `*/15`-slot på VPS.
+
+---
+
+## 🎯 Tidligere (2026-06-25) — Komplett privat→Obs BYGG sovereignty-audit (BE `b11d96d`+`11d3565`+`ec58f66`, nå DEPLOYET via `f39b4bd`)
+
+> **Status:** 3 backend-commits pushet til `claude/confident-noether-lpacih` — **NÅ DEPLOYET** (HEAD `f39b4bd` live). Kun AST/inspeksjon-verifisert (3.11-parser gir kjent falsk PEP701-feil på server.py:756/865 — IKKE mine linjer). Ingen migration. Ingen frontend-endring nødvendig (alle live Obs-flater får nå backend-filtrert data; FE home-filter + ObsGraph journal-drop allerede på plass).
+
+**Trigger:** Full audit etter at private IVF-møte-action-items lakk inn på Obs BYGG (delvis fikset i `743789a`/FE `9b0d0fd`). Mål: tette ALLE work-flater mot private data (is_private-møter, track=privat, sensitive).
+
+**Funn + fiks (alle på `is_private`-kilden, fail-closed):**
+- `/meeting-graph` (live Obs GRAF): ekskluderte IKKE is_private — kun heuristisk tag/term-blocklist. Privat møte uten magic-words lakk noder/entities/tags. → `b11d96d` ekskluderer is_private (+ semantic-nabo-subquery).
+- `/meeting/entities` + `/meeting/assignees` + `/meeting-tags` (ObsDetail/PageObs autocomplete): aggregerte over ALLE møter inkl. private → person-/klinikknavn, assignees, tags lakk. → `b11d96d` ekskluderer is_private.
+- `/graph/unified` + `/search/cross-domain` (work-URL'd, men kun døde desktop-routes i dag): meeting-halvdel uten is_private-filter; `/graph/unified` manglet edge-post-filter → kunne lekke privat møte-id som edge-target. → `11d3565` ekskluderer is_private (inkl. semantic-nabo-subqueries via `_priv_clause`).
+- `/action-items/backfill`: hardkodet `track='jobb'` for ALLE done-møter inkl. private (mislabel; contained av consumer-join men skjørt). → `ec58f66` skipper is_private (primær-pipeline lager private items korrekt som track='privat').
+
+**Verifisert CLEAN (ingen endring):**
+- `/action-items` (Oppgaver-liste/Kanban/assignee-stats): allerede is_private-filtrert i `743789a`. Autoritativ for live Oppgaver-fane.
+- `/tasks/unified`: eksponerer is_private+track (`75aa081`); FE home-filter (`9b0d0fd`/PageObs:100) fail-closed (kun source=meeting + is_private===false/bekreftet jobb-møte).
+- `/meeting` (Møter+Kalender i PageObs): default `include_private=false` ✓.
+- `/meeting/{id}`, /notes, /tags, /summary etc.: single-meeting, user-scoped — et jobb-møtes egne data = jobb-data ✓.
+- `/calendar` (calendar_module): viser private møter, MEN kun konsumert av personlige flater (PageHjem/PageKalender/Timeline), IKKE Obs BYGG. Korrekt.
+
+**Judgment call — voice-journal i /action-items:** Voice-journal-action-items opprettes BEVISST med `track='jobb'` (journal_module:1321, assignee default «Max») og vises i Obs BYGG by design — kun de uttrukne *handlingspunktene* (tittel+assignee), aldri journal-innhold (raw_text/mood/themes). IKKE en lekkasje → BEHOLDT. Residual: hvis en voice-journal tilfeldig uttrekker et privat-klingende punkt, vises det i Obs BYGG (de er hardkodet jobb/non-sensitive). Anbefaling (ikke implementert): area-klassifisering ved kilden.
+
+**Residual risiko / ikke-live:** `/meeting/prep` (ingen FE-caller) blander private prior-møter + journal i prep-note uansett target-møtes privacy — vil lekke HVIS wiret til Obs senere. Døde desktop-routes `routes/obs/MeetingGraph.jsx` (→/graph/unified) + `MeetingCalendar.jsx` (→tasks/unified ufiltrert) er importert men ikke montert; trygt nå (graph backend-fikset), men re-mount av MeetingCalendar uten filter ville vise private møte-tasks.
+
+**Konklusjon:** Etter disse + de allerede-pushede fixene er ALLE live Obs BYGG-flater lukket for private data. Gjenstående er døde/uwirede endepunkter (flagget over), ikke live-lekkasjer.
+
+---
+
+## 🎯 Tidligere (2026-06-23) — Privat møte → Obs BYGG-paritet + hybrid Spør Jarvis (BE `a7f7eb3` + FE merget `a5f7fad`)
+
+> **Status:** FE merget til prod (`a5f7fad`, PR #22) etter planlegger-review av begge personvern-invariantene (privat lekker ikke til Obs BYGG/vault; privat→sky kun ved eksplisitt `force_cloud`). **BE `a7f7eb3` GJENSTÅR deploy:** `cd ~/mayo-ai-os && git pull origin claude/confident-noether-lpacih && ./deploy.sh` — aktiverer avkryssing (action_item `item_id`-join) + `force_cloud`. Før deploy: checkboxer deaktivert (graceful), `force_cloud` ignoreres trygt (Pydantic dropper ekstra-felt).
+
+**Trigger:** Mayo testet «Privat møte» + «Spør Jarvis»: (1) kunne ikke huke av
+oppgaver / redigere / skrive notater i privat møte (ulik den rike Obs BYGG-
+visningen), (2) ønsket hybrid — lokal Gemma som default, men eksplisitt per-
+spørsmål-valg «Svar med Claude (anonymisert)».
+
+**Backend (`mayo-ai-os`, branch `claude/confident-noether-lpacih`, commit `a7f7eb3` — PUSHET):**
+- `GET /meeting/{id}` returnerer nå `is_private` + beriker topnivå-`action_items[]`
+  med `item_id` + `done` (join mot `item`-tabellen source='meeting', origin_ref,
+  FIFO tekst-match) → UI får stabil id for avhuking. Avhuking går via eksisterende
+  `PATCH /action-items/{id}` (user_id-scoped proxy — virker likt privat/jobb).
+- `meeting_ask` tar nytt felt `force_cloud: bool = False`. Ruting:
+  ikke-privat → Claude anonymisert (uendret); privat+!force_cloud → lokal Gemma
+  (uendret default); **privat+force_cloud → anonymisert Claude** (eneste vei et
+  privat transkript når sky, kun på eksplisitt forespørsel). Raden lagres fortsatt
+  `sensitive=True` (kryptert); model-etikett = «claude-sonnet (anonymisert · sky)».
+  FAIL-CLOSED bevart.
+- ⚠️ **Backend auto-deploy AV** → krever manuell `cd ~/mayo-ai-os && ./deploy.sh`.
+  Kun AST/syntaks-verifisert, IKKE runtime-testet på VPS. Ingen ny migration.
+
+**Frontend (`mayo-os`, branch `feat/privat-mote-parity`, draft PR #22 → `feat/whoop-redesign`):**
+- Privat møte-detalj (`livsplan_v12/meetings.jsx`) GJENBRUKER nå `ObsDetail` med
+  `isPrivate={true}` istedenfor egen read-only visning (slettet). Full paritet:
+  transkript, redigerbart sammendrag, avhukbare/redigerbare oppgaver, notater,
+  reanalyse.
+- `ObsDetail` tar `isPrivate`-prop og gater ALT Obs-BYGG-spesifikt bak `!isPrivate`:
+  synk-toggle/SyncChip skjult (🔒 privat-chip + «kun Postgres» istf.), `[[wiki]]`-
+  graf-nav av, Spør Jarvis ruter på ekte `isPrivate`, privat-footer. `ActionItemRow`
+  huker av via `/action-items/{item_id}` (fallback legacy `/tasks/{id}`).
+- `AskJarvis`: ny sekundær-knapp «⚡ Svar med Claude (anonymisert)» (kun private)
+  → `force_cloud:true`, eksplisitt ☁ trade-off-note. Default «🔒 Spør» = lokal.
+  RouteBadge leser `model`-strengen → viser «☁ sky (anonymisert)» når privat→sky.
+- `npm run build` rent. `tokens.ts` urørt. Ingen nye deps. `ObsDetail` er delt
+  chunk (ingen duplisering PageObs/PageLivsplanV12).
+- ⚠️ **GJENSTÅR (Mayo/VPS):** `cd ~/mayo-ai-os && ./deploy.sh` for å aktivere
+  avhuking + hybrid-ruten. PR #22 er DRAFT (ikke merget). Til backend er deployet:
+  oppgaver vises men checkbox er disabled; force_cloud ignoreres trygt.
+
+## 🎯 (2026-06-23) — «Spør Jarvis» Q&A per møte (BE `3de665a` + FE PR #21)
+
+**Trigger:** Mayo: «Bygg Spør Jarvis inne i hvert møte — Q&A mot møtets transkript + sammendrag.»
+
+**Backend (`mayo-ai-os`, branch `claude/confident-noether-lpacih`, commit `3de665a`):**
+- Migration `024_meeting_qa.sql` — tabell `meeting_qa` (id/meeting_id/user_id/question/answer/model/sensitive/created_at) + indeks `(meeting_id, created_at)`. Idempotent.
+- `POST /meeting/{id}/ask` + `GET /meeting/{id}/qa` i `db_api/meeting_module.py` (på eksisterende meeting-router — ingen server.py-endring).
+- **Suverenitets-ruting:** `sensitive = bool(is_private) if is_private is not None else True` (FAIL-CLOSED). sensitive → lokal Gemma (`gemma3:4b`, localhost Ollama), aldri sky. ikke-sensitiv → Claude `claude-sonnet-4-5` på anonymisert kontekst (reuse `Anonymizer`), de-anonymisert svar. Aldri lokal→sky-fallback ved feil.
+- Krypterer spørsmål+svar (jarvis-modulens Fernet) når sensitivt. Graceful svar ved modell-feil (ingen 500).
+- ⚠️ **Backend auto-deploy AV** → krever manuell `cd ~/mayo-ai-os && ./deploy.sh` + at migration 024 kjøres mot mayo_sov. Kun py_compile/AST-verifisert, IKKE runtime-testet på VPS.
+
+**Frontend (`mayo-os`, branch `claude/confident-noether-lpacih`, draft PR #21 → `feat/whoop-redesign`):**
+- Ny `src/mobile/AskJarvis.jsx` (gjenbrukbar panel). Mountet i privat møte-detalj (`livsplan_v12/meetings.jsx`, 🔒 lokal) + Obs BYGG-detalj (`pages/ObsDetail.jsx` SummaryTab, ☁ anonymisert).
+- `npm run build` rent. Ingen nye deps. `tokens.ts` urørt.
+- ✅ **MERGET til prod** (`e0425c4`, PR #21) etter planlegger-review av rutings-koden (bekreftet IVF aldri til sky). Frontend auto-deployer; UI-en er live, men selve svaringen aktiveres FØRST når backend deployes (til da: ærlig «kunne ikke svare», ingen data sendt).
+- ⚠️ **GJENSTÅR (Mayo/VPS):** kjør migration 024 + `cd ~/mayo-ai-os && ./deploy.sh` (samme deploy shipper også JSON-krasj-fiksen `b111fa1`). Deretter verifiser at IVF-spørsmål treffer lokal Gemma, ikke Claude.
 
 ## 🎯 Nyeste (2026-06-23 13:55) — OOM-diagnose: chromium-lekkasje var rotårsak (`03301ae`/`af1c4a8`)
 
@@ -47,6 +209,39 @@ restarter → ingen OOM-risiko fra dobbel-Whisper-load.
 1. Skriv kode, push til branch
 2. SSH til VPS: `cd ~/mayo-ai-os && git pull && ./deploy.sh`
    ELLER GitHub web-UI → Actions → Deploy backend → Run workflow
+
+---
+
+## 🎯 (2026-06-23 14:20) — Lyd-upload krasjet på Claude-JSON («Expecting ',' delimiter»)
+
+Mayo testet IVF-opptak → rød feil `Expecting ',' delimiter: line 13 col 120`.
+Rotårsak: `claude_extract` (meeting_module.py:290) gjorde `json.loads(raw)` på
+Claude-output som av og til er litt ugyldig JSON. Pipelinen kastet → status=
+`failed`, selv om **transkriptet allerede var lagret** (status `analyzing` før
+analysen). To fixer:
+- **Frontend (LIVE, merge `0055913`):** «📄 Vis transkript» vises nå også i
+  feil-tilstand (når `meetingId` finnes) → Mayo får lest opptaket selv om
+  uttrekket feilet. `capture.jsx`.
+- **Backend (`b111fa1`, IKKE deployet — krever `./deploy.sh`):** `_loads_lenient`
+  (tolererer trailing commas / ledetekst / brace-trim) + pipelinen wrapper
+  `claude_extract` i try/except → ved feil: status=`done`, tomt uttrekk (0
+  oppgaver), `analyze_degraded`-event, transkript intakt. Aldri rød feil igjen.
+
+**⚠️ Backend-deploy gjenstår:** `cd ~/mayo-ai-os && ./deploy.sh` (auto-deploy-
+push-trigger fjernet i `19a41ba`). AST OK, ikke kjørt i prod ennå.
+
+---
+
+## 🎯 (2026-06-23 13:01) — Vis transkript etter privat lyd-opptak (merge `fc98c54`)
+
+Mayo testet lyd-pipelinen og ville lese transkriptet (ligger i Postgres
+`meeting.transcript_text`, men hadde ingen UI-flate — private møter er skjult
+fra Obs BYGG-lista). La til **«📄 Vis transkript»**-knapp i Fang-arkets done-
+tilstand (`capture.jsx`) som henter `GET /meeting/{id}` og viser sammendrag +
+fullt transkript inline (scrollbart), merket «privat · ikke speilet til vault».
+Rein frontend (backend-endepunkt fantes, user_id-scoped). Commit `4335697`
+→ merge `fc98c54`. Build + deploy grønt. **NB:** lyd-pipelinen ikke
+end-to-end-bekreftet med ekte tale ennå — Mayo tester nå.
 
 ---
 
