@@ -4,9 +4,73 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-26 20:18 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.39 A4 PDF-eksport (#2) LEVERT
+**Sist oppdatert:** 2026-06-26 20:50 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.40 Long-press kontekstmeny LEVERT (siste tre-task-småting). Sesjon parkert.
 
-## 🎯 Nyeste (2026-06-26 20:18) — A4 PDF-eksport av møtereferat LEVERT
+## 🎯 Nyeste (2026-06-26 20:50) — Long-press kontekstmeny på items LEVERT
+
+**Trigger:** Mayo: «Lukk heller den siste småtingen først: long-press
+kontekstmeny … gjenbruk useLongPress, render via SheetHost/openSheet,
+maks 5 handlinger, 🔴 ingen «send til Obs BYGG», outbox + ærlig toast.»
+Avslutter tre-task-batchen ryddig før Palette Fase 2 (parkert til neste økt).
+
+### Levert (FE `e98b64a`)
+
+Tre filer, ÉN logisk endring:
+
+1. **NY `src/mobile/livsplan_v12/itemMenu.jsx`** (~120 linjer)
+   - `ItemMenuSheet` — bottom-sheet med 5 handlinger:
+     ✓ Ferdig · → Utsett til i morgen 09:00 · ▤ Flytt til område ·
+     ✎ Rediger · 🗑 Slett
+   - `AreaPickerSheet` (sub-sheet) — flytt-til-område-velger;
+     filtrerer `ctx.areas` til `a.track !== 'jobb'`
+   - Pulse-guard hindrer dobbel-fire av en rad
+   - Header viser tittel + område-chip i accent-farge
+
+2. **`app.jsx`** — tre nye ctx-helpers
+   - `ctx.snoozeItem(id, isoWhen)` — speiler completeItem-mønsteret.
+     Optimistisk `scheduled_at`+`state='scheduled'`, toast «→ Utsatt ·
+     angre», apiPatch ved UUID, rollback ved feil.
+   - `ctx.setItemArea(id, areaKey)` — defensiv vakt: avviser jobb-mål
+     med ærlig toast. Toast viser navn på mål-område.
+   - `ctx.openItemMenu(id)` — gate på `it.track !== 'jobb'`, åpner
+     ItemMenuSheet via openSheet med område-accent.
+
+3. **`shared.jsx`** — ItemLine-wrapper gjenbruker useLongPress
+   - Hook kalles ALLTID (stabil rekkefølge); handlers spreades kun når
+     `canMenu = !!ctx.openItemMenu && it.track !== 'jobb' && !dragHandle`.
+   - Prio-konteksten (dragHandle=true) bypasser hele wrapperen → bruker
+     custom onPointerDown drag-pickup i triage.jsx (c7bd137). Ingen
+     kollisjon: pointer-events ≠ touch/mouse-events.
+   - Når canMenu=false: identisk oppførsel som før (ingen handlers,
+     ingen click-suppression).
+
+### 🔴 Suverenitet — håndhevet 5 steder (defense in depth)
+1. **shared.jsx wrapper:** `it.track !== 'jobb'`
+2. **ctx.openItemMenu:** defensiv same-sjekk
+3. **ItemMenuSheet:** defensiv `sheet.close` på jobb-item
+4. **ctx.setItemArea:** avviser jobb-mål eksplisitt
+5. **AreaPickerSheet:** filtrerer `ctx.areas` til privat før render
+
+Et privat item kan ALDRI ende opp i et jobb-område via denne menyen.
+Ingen «Send til Obs BYGG»-handling eksisterer.
+
+### Smoke etter deploy
+- **Null regresjon** på berørte ItemLine-veier: #09 mobil-nav ✓,
+  #10 area-overflow ✓, #14 inbox-search ✓, #16 sheet-no-x ✓,
+  #18 palette ✓, #19 kladd ✓.
+- 18/21 totalt. Røde: #02 + #15 pre-existing; #20 flaky
+  (network error mid-stream — Gemma cold-start under full suite-last).
+
+---
+
+## Sesjon parkert — neste opp
+
+Mayo parkerte denne økta før Palette Fase 2 (#3, HANDOVER-PALETTE-PHASE2.md):
+«den har migrasjon 026 + embedding-backfill + suverenitets-ruting, og
+fortjener en fersk økt». Ingenting tapt — handover er fullt specet i
+`99d6e99`. Påbegynnes neste sesjon.
+
+## 🎯 Forrige (2026-06-26 20:18) — A4 PDF-eksport av møtereferat LEVERT
 
 **Trigger:** HANDOVER-MEETING-PDF.md (Mayos prioritet #2). Klient-side
 print → «Lagre som PDF». Privat IVF/helse må aldri server-rendres.
