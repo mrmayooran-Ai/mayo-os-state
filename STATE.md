@@ -4,9 +4,41 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-26 11:00 · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.33 Kladd-fane v1 LEVERT
+**Sist oppdatert:** 2026-06-26 14:42 · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.34 I dag-fanen declutter LEVERT
 
-## 🎯 Nyeste (2026-06-26 11:00) — Kladd-fane v1 deployet (`eb149d2` FE / `2fb7916` BE)
+## 🎯 Nyeste (2026-06-26 14:42) — «I dag» declutter (FE `fb841e6`)
+
+**Trigger:** Mayo: «Ny handover: HANDOVER-IDAG-DECLUTTER.md … område-kort
+øverst + kompakt, fjern smart-flisene, flytt Andre visninger+søk ned med
+luft. 🛑 Behold/kutt-kall (brief/kapasitet/innboks) er Mayos.»
+
+### Levert (FE `fb841e6` — branch `feat/whoop-redesign`)
+
+Endring kun i `src/mobile/livsplan_v12/today.jsx` (+77/-71). Ingen
+backend, ingen nye deps, `tokens.ts` urørt.
+
+1. **Område-grid FØRST under header** — Privat-kort + Jobb-kort flyttet
+   til toppen av `!searching`-blokken (var nederst). Det er der reisen
+   starter; skal ikke ligge under sekundære verktøy.
+2. **AreaCard kompakt** — preview-linja og «Privat ·»-linja fjernet,
+   padding 12→10, header-marg 8→6. Beholder ikon, tittel, flyt-status,
+   ring, «N åpne» + overdue-badge, ⋯-knapp. Ca 30 % lavere per kort.
+3. **SmartTiles-raden FJERNET fra denne fanen** — «3 I DAG / 1 FORFALT /
+   3 DENNE UKA / 106 INNBOKS» borte. Komponenten beholdt i
+   `shared.jsx` (desktop + legacy bruker den fortsatt).
+4. **ExtraModes + SearchTopbar til BUNNEN, med luft** — gap 6→10
+   mellom mode-boksene, marginTop/marginBottom 20px så seksjonen ikke
+   klistrer seg til nabo-blokker.
+5. **🛑-respekt** — brief, kapasitetsmåler, «Fra innboks» BEHOLDT.
+   Ingen AreaCard→tight-list-fallback (handover sier vent på Mayos OK).
+
+### Smoke
+- ✅ 09 (mobil bunn-nav `+` / `⌕`) grønn
+- ✅ 10 (desktop right-panel overflow) grønn
+- 17/19 totalt — de 2 røde (#03 typo-fuzzy stale etter `881fd67`,
+  #15 desktop modal) er pre-existing og uavhengig av denne layouten
+
+## 🎯 Forrige (2026-06-26 11:00) — Kladd-fane v1 deployet (`eb149d2` FE / `2fb7916` BE)
 
 **Trigger:** Mayo: «Ny handover klar: Kladd-fane (plain-text notater →
 `[]`-tasks)». HANDOVER-KLADD-NOTES.md.
