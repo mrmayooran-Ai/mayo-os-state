@@ -4,9 +4,54 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-26 · **Av:** planlegger (claude.ai) · **Versjon:** v0.38 Fase 3-handovers forberedt (gated) · Jarvis Fase 1 KOMPLETT (Elmars)
+**Sist oppdatert:** 2026-06-26 · **Av:** planlegger (claude.ai) · **Versjon:** v0.40 INCIDENT: Strava-sync død (dobbel token-rotasjon) — fiks-handover skrevet
 
-## 🎯 Nyeste (2026-06-26, planlegger) — Tre Fase 3-handovers FORBEREDT (alle 🛑 GATED — vent på «Kjør»)
+## 🚨 INCIDENT (2026-06-26, planlegger) — Strava-sync død → feil treningsanbefalinger (`HANDOVER-STRAVA-TOKEN-FIX.md`)
+
+> **Symptom (Mayo):** «Strava har sluttet å synche, får helt feil treningsanbefalinger.»
+>
+> **Rotårsak (audit fra kode — Elmars verifiserer på VPS):** TO uavhengige prosesser refresher OG roterer samme Strava engangs-roterende refresh-token, uten delt lås. (1) db-api `strava_module._refresh_access_token` (:68–97), (2) cron `*/5` `strava_watcher.strava_access_token` (:86–104, INGEN caching → ~288 rotasjoner/døgn). Usynkronisert read-modify-write på `.env` → før eller siden strandes en allerede-ugyldiggjort token i fila → hver refresh 400/502 → `fetch_activities` kaster → sync død permanent. **Whoop-dobbeltbindingen (koord.regel #4), strukturell.**
+>
+> **Anbefalings-effekt:** begge PT-stier (`strava_training_module._fetch_apps_script` → `strava_module.fetch_activities`) får 502 → null ferske økter → recency-merge (`8c8262a`) ser tomt → coach antar ingen trening → feil belastningsråd.
+>
+> **Fiks (handover):** (1) UMIDDELBAR: re-OAuth via `/strava-auth` → fersk token, sync tilbake. (2) DURABLE: én sannhetskilde — DB-backet `service_token` + `pg_advisory_xact_lock` rundt refresh+rotér, delt `get_strava_access_token()` brukt av BÅDE db-api og watcher; slett begge `.env`-skrivestiene. (3) FAIL-CLOSED: PT-rapport sier «Strava utdatert, hopper over belastningsråd» når data mangler — speiler Whoop `stale`-mønsteret (:391) — i stedet for selvsikkert feil råd.
+>
+> **Planlegger blind på VPS** — audit gjort fra koden; Elmars verifiserer (logg/curl/strava_notified) + implementerer + verifiserer (grunnlov §3).
+
+## 🎯 Nyeste (2026-06-26 20:18) — A4 PDF-eksport av møtereferat LEVERT
+
+**Trigger:** HANDOVER-MEETING-PDF.md (Mayos prioritet #2). Klient-side
+print → «Lagre som PDF». Privat IVF/helse må aldri server-rendres.
+
+### Levert (FE `95d8353` + smoke `fa0b2b4`)
+
+`src/mobile/pages/ObsDetail.jsx`:
+- Print-knapper i header-actionrow (ved siden av 🗑), KUN ved status='done':
+  🖨 (kort referat) + +TXT (m/ transkript, vises bare hvis segmenter finnes)
+- `MeetingReferat`-komponent: A4-layout, blekk-på-hvitt, Georgia serif.
+  Egen CSS-blokk så referatet ikke arver mørkt tema. Seksjoner i
+  handover-rekkefølge (sammendrag → temaer → beslutninger → tall &
+  datoer → handlingspunkter → entiteter → [transkript hvis valgt]).
+  Null-disiplin: tomme felter rendres ikke (ingen «—»-headers).
+- Return restrukturert til Fragment med to søsken: skjerm-DIV
+  (data-print="screen-only") + print-DIV (.obs-print-root). @media
+  print veksler dem; ingen React-portals.
+- `doPrintExport(withTranscript)`: setter `document.title` til
+  «Referat — {title} — {dateStr}» for fornuftig PDF-filnavn,
+  `window.print()`, restaurerer tittel på `afterprint`.
+
+### 🔴 Suverenitet
+- Genereres KUN i nettleseren fra data allerede i ObsDetail-state.
+- Smoke #21 stubber `window.print` + sniffer `fetch`-URLer, asserter
+  ZERO kall til `/export|/pdf|/print|/render` og eksterne PDF-tjenester
+  (DocRaptor/PDFShift/etc).
+- Privat referat bærer 🔒 Privat-markør og «Ikke del videre»-foot.
+- tokens.ts urørt, ingen nye deps (`git diff package.json` tom).
+
+Smoke #21 grønn isolert: 4s, 4000 tegn print-rot, 1 nettverkskall i
+klikk-veien (ikke `/export|/pdf` — sannsynligvis bakgrunns-`/qa`-load).
+
+## 🎯 Forrige (2026-06-26, planlegger) — Tre Fase 3-handovers FORBEREDT (alle 🛑 GATED — vent på «Kjør»)
 
 > **Status:** Mayo: «bare forbered disse imens så er de klare». Tre spec'er skrevet, alle tydelig 🛑-merket — Elmars skal IKKE bygge før Mayo sier «Kjør». Alle BE+FE, ingen nye deps. Ligger i backend-repo-rot.
 >
