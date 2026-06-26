@@ -4,9 +4,76 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-25 · **Av:** Claude (terminal) · **Versjon:** Sovereignty-audit DEPLOYET (`f39b4bd` live) + suverenitets-smoke-test som vakt + handover kommandopalett
+**Sist oppdatert:** 2026-06-26 · **Av:** Claude (planlegger) · **Versjon:** v0.32 + handover Kladd-fane skrevet (`8fa9904`)
 
-## 🎯 Nyeste (2026-06-25) — Handover skrevet: kommandopalett (⌘K) + lynsøk (`e2434ca`, FE PR #23 draft)
+## 🎯 Nyeste (2026-06-26, planlegger) — Handover skrevet: Kladd-fane (plain-text notater → `[]`-tasks)
+
+> **Status:** Spec til Elmars klar — `HANDOVER-KLADD-NOTES.md` (commit `8fa9904`). **Ikke implementert enda.** Bakgrunn: Mayo fanger løse idéer i Apple TextEdit (plain text) og vil ha samme frihet i Livsplan — en egen «Kladd»-fane der notater lagres som `.md` (som journal, men i egen `MayoVault/notater/`-mappe) og oppgaver høstes rett ut av teksten.
+>
+> **Låst med Mayo:** (1) egen fane i Livsplan-bunnnavet, ikke knapp i journal; (2) `[]`-checkbox-syntaks for task-høsting; (3) mange små, auto-daterte notater; (4) `[]` → privat inbox default (jobb-ruting er etter-handling).
+>
+> **Kjernemekanikk:** `[]` er BÅDE trigger og status — `[]` = lag task, backend skriver om `[]`→`[ ]` ved høsting (idempotent vakt mot duplikat ved autosave), `[x]` speiles når item.state=done. Notatet blir en levende sjekkliste i ren tekst, speilet til vault som ekte markdown.
+>
+> **Scope BE+FE:** ny `note`+`note_task`-tabell (migrasjon), `note_module.py` (mønster fra journal_module), vault-speiling, deterministisk `[]`-parsing (ingen AI). FE: `kladd.jsx` (plain textarea, autosave, outbox), ny NAV_ITEM. 🔴 `track='privat'`, `source='note'` — aldri Obs BYGG. Smoke #19 spesifisert.
+>
+> **Nav-obs:** bunnnavet er fullt (I dag·Prio·Revidere·Privat møte + søk + Fang). Forslag i spec: flytt «Revidere» inn under «Andre visninger» (finnes allerede inline i I dag) og gi plassen til Kladd — men IKKE fjern en fane uten Mayos OK.
+>
+> **🛑 Fase 2 (gated):** AI-høsting (privat→Gemma), embeddings (palett-/RAG-søkbar), marker-og-trykk, toveis `[x]`→`[ ]`.
+
+---
+
+## 🎯 Tidligere (2026-06-26 10:40) — Kommandopalett (⌘K) v1 deployet (`ce206a7` FE / `93db5c1` BE)
+
+**Trigger:** Mayo: «Ny handover klar: kommandopalett (⌘K) + lynsøk ...
+Bygg kun v1». HANDOVER-COMMAND-PALETTE.md på branch claude/confident-
+noether-lpacih i mayo-os.
+
+### Levert (FE `ce206a7` på feat/whoop-redesign)
+
+1. **`src/lib/search.js`** (ny) — `searchScore` utløftet fra `today.jsx:153`
+   så Livsplan + paletten deler matcheren. Streng literal-substring
+   (Mayo's `881fd67` bevart). Tester 03/13/14 uberørt.
+2. **`src/shell/CommandPalette.jsx`** (ny, 416 linjer) — overlay-modal +
+   `useCommandPalette()`-hook. ⌘K/Ctrl+K åpner globalt, Esc lukker, ↑/↓/
+   Enter navigerer. Tre seksjoner: Handlinger · Naviger · Søk-treff.
+3. **`src/App.jsx`** — mountet etter `<Routes>` inni `<ToastProvider>` →
+   tilgjengelig på alle ruter.
+4. **`today.jsx`** — import endret til `@/lib/search`, lokal funksjon
+   slettet (22 linjer -).
+
+### 🔴 Suverenitet (handover §Suverenitet pkt 2)
+
+- `/meeting?limit=200` med default `include_private=false` → private
+  møter lastes ALDRI inn i palette-state i v1.
+- `/tasks/unified` items filtreres: `is_private === true` droppes.
+- Møte-treff → `/obs-bygg/meeting/{id}` (kun jobb). Item-treff → ALLTID
+  `/livsplan`. Ingen krysning mulig.
+
+### Levert (BE `93db5c1` på claude/confident-noether-lpacih)
+
+- **`smoke/tests/18-command-palette.js`** — Meta+K åpner, søker «liv»,
+  ≥1 treff, suverenitets-røyk (ingen 🔒). ✓ pass.
+
+### Verifisert (akseptansekriterier)
+
+- ✅ ⌘K/Ctrl+K + Esc · ↑↓Enter · iOS no-zoom · ingen mus nødvendig
+- ✅ Naviger-treff verifisert mot App.jsx (`/assistent` for Jarvis,
+  `/strength` for Styrke siden `/jarvis` og `/styrke` ikke finnes)
+- ✅ Søk < 50ms (pure-memory)
+- ✅ Ingen private treff
+- ✅ Ingen ny dep · tokens.ts urørt
+- ✅ Live: `https://mayooran.com/version.json` → `ce206a7`
+- ✅ Smoke 16/17 (test 02 FET-strategi feilet i cron-runs `08:01`,
+  `08:15`, `08:30` FØR mine endringer — eksisterende issue, ikke regression)
+
+### 🛑 STOPP-gate respektert
+
+Fase 2 (privat-søk / inline ⌘J / `[[backlinks]]`) IKKE bygget. Venter
+på Mayo's «Kjør» på det åpne suverenitets-spørsmålet i handover.
+
+---
+
+## 🎯 (2026-06-25) — Handover skrevet: kommandopalett (⌘K) + lynsøk (`e2434ca`, FE PR #23 draft)
 
 > **Status:** Handover-spec til Elmars skrevet etter at Mayo sammenlignet UX/muligheter mot reflect.app. Funn: vi er foran på suverenitet/dybde (helse, lokal-AI-ruting, norsk stemme, agentisk Jarvis), men bak på *opplevd hastighet/friksjon*. Reflects «premium» = keyboard-first kommandopalett + instant søk. Det er det enkleste grepet med størst løft, og rører ikke personvern-lagene.
 >
