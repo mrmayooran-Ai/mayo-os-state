@@ -4,7 +4,97 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-26 · **Av:** Claude (planlegger) · **Versjon:** v0.32 + 2 handovers i kø: Kladd-fane + «I dag»-opprydding
+**Sist oppdatert:** 2026-06-26 · **Av:** planlegger (claude.ai) · **Versjon:** v0.35 Handover skrevet: Spør Jarvis token-streaming
+
+## 🎯 Nyeste (2026-06-26, planlegger) — Handover skrevet: Spør Jarvis token-streaming (`HANDOVER-JARVIS-STREAMING.md`)
+
+> **Status:** Spec til Elmars klar — `mayo-ai-os/HANDOVER-JARVIS-STREAMING.md` (branch `claude/confident-noether-lpacih`). **Ikke implementert enda.** Mayo prioriterte dette som #1 av tre store (foran A4-PDF og palett-Fase-2). Streaming-transport på eksisterende `/meeting/{id}/ask` — ingen nye deps.
+>
+> **Hvorfor:** «Spør Jarvis» tar ~60–90s på lokal Gemma med død «Jarvis tenker…»-puls. Reflect-gapet var *opplevd hastighet*; dette er skarpeste forekomst. Token-streaming = samme svar/ruting/latens, men opplevelsen snur fra «hengt» til «skriver».
+>
+> **Kjerneinnsikt (styrer scopet):** lokal Gemma (`_ask_local_gemma`, meeting_module.py:1680) har INGEN anonymisering → streamer trivielt + trygt. Sky/Claude (`_ask_claude_anonymized`:1696) **de-anonymiserer HELE svaret** (`anon.deanonymize(raw)`:1720) → naiv token-streaming kan splitte en placeholder (`PERSON_1`) over to chunks → lekkasje. Derfor: **Fase 1 = KUN lokal-streaming** (default-rute + fail-closed + IVF/helse — og den eneste trygge). **Fase 2 (sky) bak 🛑** — krever de-anon-sikker buffering.
+>
+> **Scope BE+FE:** BE: `?stream=1` → `StreamingResponse` SSE (`meta`→`delta`→`done`/`error`), `_ask_local_gemma_stream` (Ollama `stream:True`, NDJSON-delta), persister kryptert ved `done` (uendret meeting_qa + history). FE: ny `postStream` i `api.js` (SSE-leser, `post` urørt), AskJarvis appender token-for-token, RouteBadge fra `meta` FØR tokens. Obs BYGG/`force_cloud` faller tilbake til dagens ikke-stream `post` til Fase 2 (ingen regresjon). Smoke #20 spesifisert.
+>
+> **🔴 Suverenitet:** lokale tokens forlater aldri VPS (Ollama localhost, samme autentiserte db-kanal); 🔒-RouteBadge før tokens; kryptering + fail-closed uendret. **Fase 2-sky gated nettopp pga. de-anon-split-risiko.**
+
+## 🎯 Forrige (2026-06-26 14:42) — «I dag» declutter (FE `fb841e6`)
+
+**Trigger:** Mayo: «Ny handover: HANDOVER-IDAG-DECLUTTER.md … område-kort
+øverst + kompakt, fjern smart-flisene, flytt Andre visninger+søk ned med
+luft. 🛑 Behold/kutt-kall (brief/kapasitet/innboks) er Mayos.»
+
+### Levert (FE `fb841e6` — branch `feat/whoop-redesign`)
+
+Endring kun i `src/mobile/livsplan_v12/today.jsx` (+77/-71). Ingen
+backend, ingen nye deps, `tokens.ts` urørt.
+
+1. **Område-grid FØRST under header** — Privat-kort + Jobb-kort flyttet
+   til toppen av `!searching`-blokken (var nederst). Det er der reisen
+   starter; skal ikke ligge under sekundære verktøy.
+2. **AreaCard kompakt** — preview-linja og «Privat ·»-linja fjernet,
+   padding 12→10, header-marg 8→6. Beholder ikon, tittel, flyt-status,
+   ring, «N åpne» + overdue-badge, ⋯-knapp. Ca 30 % lavere per kort.
+3. **SmartTiles-raden FJERNET fra denne fanen** — «3 I DAG / 1 FORFALT /
+   3 DENNE UKA / 106 INNBOKS» borte. Komponenten beholdt i
+   `shared.jsx` (desktop + legacy bruker den fortsatt).
+4. **ExtraModes + SearchTopbar til BUNNEN, med luft** — gap 6→10
+   mellom mode-boksene, marginTop/marginBottom 20px så seksjonen ikke
+   klistrer seg til nabo-blokker.
+5. **🛑-respekt** — brief, kapasitetsmåler, «Fra innboks» BEHOLDT.
+   Ingen AreaCard→tight-list-fallback (handover sier vent på Mayos OK).
+
+### Smoke
+- ✅ 09 (mobil bunn-nav `+` / `⌕`) grønn
+- ✅ 10 (desktop right-panel overflow) grønn
+- 17/19 totalt — de 2 røde (#03 typo-fuzzy stale etter `881fd67`,
+  #15 desktop modal) er pre-existing og uavhengig av denne layouten
+
+## 🎯 Forrige (2026-06-26 11:00) — Kladd-fane v1 deployet (`eb149d2` FE / `2fb7916` BE)
+
+**Trigger:** Mayo: «Ny handover klar: Kladd-fane (plain-text notater →
+`[]`-tasks)». HANDOVER-KLADD-NOTES.md.
+
+### Levert (BE `2a3ec7e` + `2fb7916`)
+
+1. **Migrasjon 025** — `note` + `note_task`-tabeller.
+2. **`note_module.py`** (260 linjer) — GET/POST/PATCH/DELETE /notes med
+   `[]`-høsting + vault-speiling + `[x]`-statusspeiling.
+3. **`tasks_module.py`** — `source='note'` lagt til i `/tasks/unified`;
+   note-treff får `is_private:true` + `url='/livsplan'`.
+
+### Levert (FE `eb149d2`)
+
+- **`kladd.jsx`** (395 linjer) — PageKladd + NoteEditor. Ren textarea,
+  `fontSize:16` (iOS no-zoom). Autosave 600ms med localStorage outbox
+  FØRST, ærlig toast. Backend-respons body_md → caret-bevarende update.
+- **app.jsx + desktop.jsx** — Kladd som 4. NAV. Notisblokk-glyf.
+
+### 🔴 Suverenitet
+
+- `track='privat'` default → bor i Livsplan, ALDRI Obs BYGG
+- `/action-items` filtrerer ut `'note'` → ingen lekkasje
+  (smoke #19 verifiserer)
+
+### E2E-verifisert
+
+- ✅ 2 `[]`-linjer → 2 privat-inbox-tasks; gjentatt PATCH → 0 duplikater
+- ✅ Vault-fil `MayoVault/notater/2026-06-26.md` skrevet
+- ✅ note-tasks i `/tasks/unified`, IKKE i `/action-items`
+- ✅ Smoke 18/19 pass (#19 ny; #02 FET-strategi feilet eksisterende)
+
+### ⚠️ Nav-tranghet IKKE løst — krever Mayo's «Kjør»
+
+Mobile NAV har 5 faner nå. Handover foreslo flytte «Revidere» inn under
+ExtraModes — men: «Bekreft med Mayo før du fjerner en fane». Alle 5
+beholdt.
+
+### 🛑 STOPP-gate respektert
+
+Fase 2 IKKE bygget: AI-høsting · embeddings · long-press → «Lag oppgave»
+· toveis `[x]`→`[ ]` re-åpner task.
+
+---
 
 ## 🎯 Nyeste (2026-06-26, planlegger) — Handover skrevet: «I dag»-fane opprydding (`d860cbe`, mayo-os)
 
