@@ -4,7 +4,23 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-26 20:50 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.40 Long-press kontekstmeny LEVERT (siste tre-task-småting). Sesjon parkert.
+**Sist oppdatert:** 2026-06-26 20:55 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.41 Long-press kontekstmeny LEVERT. Sesjon parkert. 🚨 Strava-incident (planlegger) åpen — ikke berørt denne sesjonen.
+
+## 🚨 INCIDENT (2026-06-26, planlegger) — Strava-sync død → feil treningsanbefalinger (`HANDOVER-STRAVA-TOKEN-FIX.md`)
+
+> **Status (Elmars 2026-06-26 20:55):** ikke berørt denne sesjonen — Mayo
+> prioriterte tre-task-batchen + Jarvis-streaming + A4 PDF + parkering før
+> Palette Fase 2. Strava-fiks ligger som åpen handover for neste økt.
+>
+> **Symptom (Mayo):** «Strava har sluttet å synche, får helt feil treningsanbefalinger.»
+>
+> **Rotårsak (audit fra kode — Elmars verifiserer på VPS):** TO uavhengige prosesser refresher OG roterer samme Strava engangs-roterende refresh-token, uten delt lås. (1) db-api `strava_module._refresh_access_token` (:68–97), (2) cron `*/5` `strava_watcher.strava_access_token` (:86–104, INGEN caching → ~288 rotasjoner/døgn). Usynkronisert read-modify-write på `.env` → før eller siden strandes en allerede-ugyldiggjort token i fila → hver refresh 400/502 → `fetch_activities` kaster → sync død permanent. **Whoop-dobbeltbindingen (koord.regel #4), strukturell.**
+>
+> **Anbefalings-effekt:** begge PT-stier (`strava_training_module._fetch_apps_script` → `strava_module.fetch_activities`) får 502 → null ferske økter → recency-merge (`8c8262a`) ser tomt → coach antar ingen trening → feil belastningsråd.
+>
+> **Fiks (handover):** (1) UMIDDELBAR: re-OAuth via `/strava-auth` → fersk token, sync tilbake. (2) DURABLE: én sannhetskilde — DB-backet `service_token` + `pg_advisory_xact_lock` rundt refresh+rotér, delt `get_strava_access_token()` brukt av BÅDE db-api og watcher; slett begge `.env`-skrivestiene. (3) FAIL-CLOSED: PT-rapport sier «Strava utdatert, hopper over belastningsråd» når data mangler — speiler Whoop `stale`-mønsteret (:391) — i stedet for selvsikkert feil råd.
+>
+> **Planlegger blind på VPS** — audit gjort fra koden; Elmars verifiserer (logg/curl/strava_notified) + implementerer + verifiserer (grunnlov §3).
 
 ## 🎯 Nyeste (2026-06-26 20:50) — Long-press kontekstmeny på items LEVERT
 
