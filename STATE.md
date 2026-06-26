@@ -4,9 +4,85 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-26 10:40 · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.32 kommandopalett v1 LEVERT
+**Sist oppdatert:** 2026-06-26 11:00 · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.33 Kladd-fane v1 LEVERT
 
-## 🎯 Nyeste (2026-06-26 10:40) — Kommandopalett (⌘K) v1 deployet (`ce206a7` FE / `93db5c1` BE)
+## 🎯 Nyeste (2026-06-26 11:00) — Kladd-fane v1 deployet (`eb149d2` FE / `2fb7916` BE)
+
+**Trigger:** Mayo: «Ny handover klar: Kladd-fane (plain-text notater →
+`[]`-tasks)». HANDOVER-KLADD-NOTES.md.
+
+### Levert (BE `2a3ec7e` + `2fb7916`)
+
+1. **Migrasjon 025** — `note` + `note_task`-tabeller.
+2. **`note_module.py`** (260 linjer) — GET/POST/PATCH/DELETE /notes med
+   `[]`-høsting + vault-speiling + `[x]`-statusspeiling.
+3. **`tasks_module.py`** — `source='note'` lagt til i `/tasks/unified`;
+   note-treff får `is_private:true` + `url='/livsplan'`.
+
+### Levert (FE `eb149d2`)
+
+- **`kladd.jsx`** (395 linjer) — PageKladd + NoteEditor. Ren textarea,
+  `fontSize:16` (iOS no-zoom). Autosave 600ms med localStorage outbox
+  FØRST, ærlig toast. Backend-respons body_md → caret-bevarende update.
+- **app.jsx + desktop.jsx** — Kladd som 4. NAV. Notisblokk-glyf.
+
+### 🔴 Suverenitet
+
+- `track='privat'` default → bor i Livsplan, ALDRI Obs BYGG
+- `/action-items` filtrerer ut `'note'` → ingen lekkasje
+  (smoke #19 verifiserer)
+
+### E2E-verifisert
+
+- ✅ 2 `[]`-linjer → 2 privat-inbox-tasks; gjentatt PATCH → 0 duplikater
+- ✅ Vault-fil `MayoVault/notater/2026-06-26.md` skrevet
+- ✅ note-tasks i `/tasks/unified`, IKKE i `/action-items`
+- ✅ Smoke 18/19 pass (#19 ny; #02 FET-strategi feilet eksisterende)
+
+### ⚠️ Nav-tranghet IKKE løst — krever Mayo's «Kjør»
+
+Mobile NAV har 5 faner nå. Handover foreslo flytte «Revidere» inn under
+ExtraModes — men: «Bekreft med Mayo før du fjerner en fane». Alle 5
+beholdt.
+
+### 🛑 STOPP-gate respektert
+
+Fase 2 IKKE bygget: AI-høsting · embeddings · long-press → «Lag oppgave»
+· toveis `[x]`→`[ ]` re-åpner task.
+
+---
+
+## 🎯 Nyeste (2026-06-26, planlegger) — Handover skrevet: «I dag»-fane opprydding (`d860cbe`, mayo-os)
+
+> **Status:** Spec til Elmars klar — `mayo-os/HANDOVER-IDAG-DECLUTTER.md` (branch `claude/confident-noether-lpacih`). **Ikke implementert enda.** Ren frontend-layout i `today.jsx`, ingen backend/deps.
+>
+> **Mayos tre grep (skjermbilder):** (1) prosjekt-/område-kortene tar for mye plass + skal ØVERST (der reisen starter) → flytt til topp + gjør kompakt; (2) «Andre visninger» (Puls/Kalender/Revider) + søk mangler luft → vertikal rytme; (3) dropp smart-flisene (I dag/Forfalt/Uka/Innboks) → fjernes fra fana.
+>
+> **Ny rekkefølge:** Header → Områder (kompakt, Privat+Jobb, suverenitets-skille intakt) → Brief → Kapasitet+Dagens → Fra innboks → Andre visninger+søk (nederst, med luft). SmartTiles fjernet (kun fra denne fana, ikke slettet fra shared).
+>
+> **Kompakt AreaCard:** dropp forhåndsvis-linja nederst (`Ben A — styrkeøkt` osv.) + stram padding → ~30 % lavere. Fallback til tett-liste kun etter Mayos OK.
+>
+> **🛑 Planlegger-kall (vetoable):** brief/kapasitet/«Fra innboks» beholdt slanke — kutt mer kun etter å spørre Mayo.
+
+---
+
+## 🎯 Tidligere (2026-06-26, planlegger) — Handover skrevet: Kladd-fane (plain-text notater → `[]`-tasks)
+
+> **Status:** Spec til Elmars klar — `HANDOVER-KLADD-NOTES.md` (commit `8fa9904`). **Ikke implementert enda.** Bakgrunn: Mayo fanger løse idéer i Apple TextEdit (plain text) og vil ha samme frihet i Livsplan — en egen «Kladd»-fane der notater lagres som `.md` (som journal, men i egen `MayoVault/notater/`-mappe) og oppgaver høstes rett ut av teksten.
+>
+> **Låst med Mayo:** (1) egen fane i Livsplan-bunnnavet, ikke knapp i journal; (2) `[]`-checkbox-syntaks for task-høsting; (3) mange små, auto-daterte notater; (4) `[]` → privat inbox default (jobb-ruting er etter-handling).
+>
+> **Kjernemekanikk:** `[]` er BÅDE trigger og status — `[]` = lag task, backend skriver om `[]`→`[ ]` ved høsting (idempotent vakt mot duplikat ved autosave), `[x]` speiles når item.state=done. Notatet blir en levende sjekkliste i ren tekst, speilet til vault som ekte markdown.
+>
+> **Scope BE+FE:** ny `note`+`note_task`-tabell (migrasjon), `note_module.py` (mønster fra journal_module), vault-speiling, deterministisk `[]`-parsing (ingen AI). FE: `kladd.jsx` (plain textarea, autosave, outbox), ny NAV_ITEM. 🔴 `track='privat'`, `source='note'` — aldri Obs BYGG. Smoke #19 spesifisert.
+>
+> **Nav-obs:** bunnnavet er fullt (I dag·Prio·Revidere·Privat møte + søk + Fang). Forslag i spec: flytt «Revidere» inn under «Andre visninger» (finnes allerede inline i I dag) og gi plassen til Kladd — men IKKE fjern en fane uten Mayos OK.
+>
+> **🛑 Fase 2 (gated):** AI-høsting (privat→Gemma), embeddings (palett-/RAG-søkbar), marker-og-trykk, toveis `[x]`→`[ ]`.
+
+---
+
+## 🎯 Tidligere (2026-06-26 10:40) — Kommandopalett (⌘K) v1 deployet (`ce206a7` FE / `93db5c1` BE)
 
 **Trigger:** Mayo: «Ny handover klar: kommandopalett (⌘K) + lynsøk ...
 Bygg kun v1». HANDOVER-COMMAND-PALETTE.md på branch claude/confident-
