@@ -4,7 +4,17 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-27 · **Av:** planlegger (claude.ai) · **Versjon:** v0.44 KRITISK journal-UX/autolagring (handover) · PT LLM-rotårsak = Gemini quota 20/dag (Elmars) · fail-closed PT + long-press levert · Strava-diagnose avkreftet
+**Sist oppdatert:** 2026-06-27 · **Av:** planlegger (claude.ai) · **Versjon:** v0.45 pt-daily → Claude Haiku (handover, 1-linje LiteLLM-alias) · KRITISK journal-UX/autolagring · fail-closed PT levert · Strava-diagnose avkreftet
+
+## 🎯 Nyeste (2026-06-27, planlegger) — Bytt `pt-daily` Gemini → Claude Haiku (`HANDOVER-PT-DAILY-HAIKU.md`)
+
+> **Trigger:** Mayo: «Bytter pt-daily til Claude Haiku.» Rotårsak (`ecf00da`): Gemini quota 20 RPD → daglig fallback.
+>
+> **Endring:** 1 linje i `infra/litellm/config.yaml` linje 74–77. `pt-daily`-alias byttes fra `gemini/gemini-2.5-flash` til `claude-haiku-4-5-20251001` (ANTHROPIC_API_KEY). Kommentaren over aliaset sier ordrett «PT-koden kaller KUN disse aliasene — modellbytte = konfiglinje her» (config.yaml:73). **Ingen kodeendring i pt_llm.py.** Haiku 4.5 er allerede lastet og validert i samme gateway (config.yaml:62–65), og er allerede ledd 3 i fallback-kjeden (pt_llm.py:146) — så modellen har de facto vært i bruk hver dag når Gemini-veggen traff, bare med ett sekunds ekstra forsinkelse. Nå går vi rett dit.
+>
+> **Kostnad:** ~$0.002 per daglig rapport → ~$0.06/mnd. Pris er ikke et issue.
+>
+> **Verifiser:** `pt-daily`-curl mot gatewayen returnerer Haiku, `PT LLM pt-daily feilet`-loggen forsvinner, daglig rapport bruker AI-coaching (ikke fail-closed-banner).
 
 ## 🎯 Nyeste (2026-06-27 09:00) — PT LLM-fallback-bug: rotårsak diagnostisert
 
