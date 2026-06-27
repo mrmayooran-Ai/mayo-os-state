@@ -4,9 +4,57 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-27 08:40 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.42 Strava-incident DIAGNOSE+FAIL-CLOSED — handover-rotårsak avkreftet, §4 levert. §3 ikke akutt.
+**Sist oppdatert:** 2026-06-27 09:00 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.43 PT LLM-fallback-bug diagnostisert + logg-fiks. Gemini quota=20/dag funnet.
 
-## 🎯 Nyeste (2026-06-27 08:40) — Strava-incident: diagnose + fail-closed PT-rapport
+## 🎯 Nyeste (2026-06-27 09:00) — PT LLM-fallback-bug: rotårsak diagnostisert
+
+**Trigger:** Mayo: «undersøk pt_llm coach_comment fallback-feilen»
+(referansert i forrige STATE som «separat sak»).
+
+### Diagnose (`60fce31`)
+
+**To uavhengige bugs avdekket:**
+
+**1. Logg-bug i `pt_llm.py:155`** — `logger.warning("PT LLM %s feilet (%s)
+→ fallback", model, type(e).__name__)`. Loguru bruker `{}`-format, IKKE
+printf `%s`-args. Args ble ignorert → loggen viste literal `%s feilet (%s)`
+hver dag i ukevis uten å avsløre hvilken modell eller hvilken feil.
+Fix: byttet til `{}`-format + inkluderte feil-melding (kappet 120 char) +
+loggen tom-tekst-fallback eksplisitt (Gemini med thinking-modus kan
+levere "" når reasoning_tokens spiser hele max_tokens).
+
+**2. Gemini 2.5 Flash gratis-tier-quota: 20 RPD** (sitert direkte fra
+API-svaret: `"quotaValue":"20", "model":"gemini-2.5-flash"`). PT-rapport
+bruker 1/dag, men `orchestrator/router.py:759` lar Telegram-bot + web-chat
+bruke `gemini`-aliasen som deler samme key+quota. Mayos chat-bruk fyller
+opp 20-grensen før PT-rapport-cron 06:00 → **pt-daily 429 hver dag** →
+fallback til pt-weekly (Claude Sonnet 4.5) som leverer riktig svar.
+
+### Konsekvens
+- Fallback-kjeden FUNGERER: Claude leverer fornuftige PT-anbefalinger
+  (`PT-blokk fra v3.1 daglig-kort (modell=pt-weekly)` hver dag).
+- Mayo's klage om «feil treningsanbefalinger» **ikke forklart av denne
+  feilen** — pt-weekly (Claude) gir gode råd. Det Mayo merket var i stedet
+  20 dagers Strava-tomgang under 429-rate-limit (allerede løst §4).
+- Stille kostnad: hver fallback til Claude koster ~$0.003. Med ~365 dager
+  = ~$1/år. Trivielt, men ikke gratis som intendert.
+
+### Anbefaling for løsning (avventer Mayos retning — flere alternativer)
+- **(A) Egen Gemini-key for pt-daily** — isolert quota, gratis. Trenger
+  Mayo å opprette ny key i Google AI Studio.
+- **(B) Bytt pt-daily til Claude Haiku** — billig (~$0.0001/kall), aldri
+  429, men ikke gratis.
+- **(C) Bytt pt-daily til Gemini 2.5 Flash-lite** — høyere RPD-grense i
+  gratis-tier. Trenger config-endring i `infra/litellm/config.yaml`.
+- **(D) Gjør ingenting** — fallback fungerer. Bare kostnad + stille
+  diagnose-tap (logg-bug var det viktigste).
+
+### Verifisert
+- 5/5 `test_pt_llm.py` tester grønne
+- Live `coach_comment(card, kind='daily')`: pt-daily 429, fallback til
+  pt-weekly leverer 200-tegns coaching-tekst. Logg nå viser eksakt feil.
+
+## 🎯 Forrige (2026-06-27 08:40) — Strava-incident: diagnose + fail-closed PT-rapport
 
 **Trigger:** HANDOVER-STRAVA-TOKEN-FIX.md (`a530bbe`) — Mayo: «Strava har
 sluttet å synche, får helt feil treningsanbefalinger.»
