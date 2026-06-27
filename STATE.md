@@ -4,7 +4,70 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-27 09:00 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.43 PT LLM-fallback-bug diagnostisert + logg-fiks. Gemini quota=20/dag funnet.
+**Sist oppdatert:** 2026-06-27 10:25 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.46 KRITISK journal-datatap-fiks LIVE (3 faser + smoke #26). pt-daily-bytte ikke berørt enda.
+
+## 🎯 Nyeste (2026-06-27 10:25) — 🔴 KRITISK: Journal-datatap-fiks LIVE
+
+**Trigger:** Mayo: «mistet et langt journal-innlegg ved swipe-bort … alt
+input på mayooran.com må autolagres … det er kritisk.» HANDOVER-JOURNAL-
+UX-AUTOSAVE.md prioritet #1. Push direkte til `feat/whoop-redesign`
+per Mayos eksplisitt ønske om at fiks går live straks (datatap).
+
+### Levert i 3 faser
+
+**Phase 1 — Min. blødnings-stopp** (FE `e216050`):
+DateEntrySheet (kalender-sti, der Mayo mistet innlegget):
+- Synkron `localStorage.setItem(draftKey, value)` på HVER `setDraft` via
+  ny `setDraftAndPersist`-helper. Nøkkel: `mayo.journal.draft.new:<dato>`.
+- `useState`-initializer leser localStorage ved mount → restaurerer kladd.
+- `useEffect` registrerer `pagehide` + `visibilitychange (hidden)` +
+  `beforeunload` flush-lyttere. `draftRef.current` brukes så lyttere leser
+  ferskeste verdi (closer-over-state ville sett stale data).
+- Tøm kladd KUN etter server-2xx. Feil ved POST → kladd beholdes.
+- «● gjenopprettet ulagret kladd»-indikator vises diskré.
+
+**Phase 2 — DateEntrySheet UX** (FE `9f9305d`):
+- overlay `zIndex` 1000 → **9999** (over BottomNav `50`)
+- inner padding-bottom: `calc(env(safe-area-inset-bottom, 0px) + 32px)` —
+  Save-knappen aldri klemt mot iOS safe-area, Safari-chrome, keyboard
+- textarea `fontSize` 14 → **16** (iOS Safari no-zoom på fokus)
+
+**Phase 3 — FullscreenEditor + EntryEditor** (FE `9f9305d`):
+Identisk kladd-mønster (`draftKey`, mount-restore, synkron skriv,
+pagehide-flush, unmount-flush) speilet til de to andre editorene.
+- FullscreenEditor textarea 14 → 16, mood-`<select>` 13.5 → 16,
+  tag-input 10.5 → 16 (bredde 80 → 110 så placeholder ikke trunkeres).
+  `closeAndSave` tømmer kladd etter server-2xx.
+- EntryEditor: kladd-mønster + fieldStyle `fontSize` 13 → 16
+  (gjelder dato/tid/tag-inputs i detalj-panelet).
+- Begge viser «● gjenopprettet ulagret kladd»-indikator i header.
+
+### Smoke #26 — datatap-vakt (BE `bbd20cb`)
+- Skriv unik tag-tekst til localStorage med `mayo.journal.draft.new:2024-01-15`
+- Reload siden → assert kladd fortsatt der (livbøye intakt)
+- Assert textarea-er i DOM har `fontSize ≥ 16` (skippes hvis tom journal)
+- Grønn isolert (4.8s). Full suite: **20/22 pass**, de 2 røde
+  (#02 FET, #15 desktop modal) er pre-existing.
+
+### 🔴 5 sjekkpunkter for «overlever bortgang»
+1. Mount → localStorage restoreres → tekst tilbake i feltet
+2. Hver onChange → localStorage synkron skriv (livbøyen)
+3. pagehide-event → synkron flush
+4. visibilitychange→hidden → synkron flush
+5. beforeunload → synkron flush
+Tøm KUN etter server-2xx. Feil holder kladd. Ingen falsk «lagret».
+
+Ingen nye deps. tokens.ts urørt.
+
+## 🎯 Forrige (2026-06-27, planlegger) — Bytt `pt-daily` Gemini → Claude Haiku (`HANDOVER-PT-DAILY-HAIKU.md`)
+
+> **Trigger:** Mayo: «Bytter pt-daily til Claude Haiku.» Rotårsak (`ecf00da`): Gemini quota 20 RPD → daglig fallback.
+>
+> **Endring:** 1 linje i `infra/litellm/config.yaml` linje 74–77. `pt-daily`-alias byttes fra `gemini/gemini-2.5-flash` til `claude-haiku-4-5-20251001` (ANTHROPIC_API_KEY). Kommentaren over aliaset sier ordrett «PT-koden kaller KUN disse aliasene — modellbytte = konfiglinje her» (config.yaml:73). **Ingen kodeendring i pt_llm.py.** Haiku 4.5 er allerede lastet og validert i samme gateway (config.yaml:62–65), og er allerede ledd 3 i fallback-kjeden (pt_llm.py:146) — så modellen har de facto vært i bruk hver dag når Gemini-veggen traff, bare med ett sekunds ekstra forsinkelse. Nå går vi rett dit.
+>
+> **Kostnad:** ~$0.002 per daglig rapport → ~$0.06/mnd. Pris er ikke et issue.
+>
+> **Verifiser:** `pt-daily`-curl mot gatewayen returnerer Haiku, `PT LLM pt-daily feilet`-loggen forsvinner, daglig rapport bruker AI-coaching (ikke fail-closed-banner).
 
 ## 🎯 Nyeste (2026-06-27 09:00) — PT LLM-fallback-bug: rotårsak diagnostisert
 
@@ -125,8 +188,23 @@ Watcheren bruker ny `strava_client` neste 5-minutters-vindu (cron). PT-
 rapport-cron kjører i morgen 06:00 Oslo — første ekte fail-closed-test.
 Hvis sync funker (som nå): null banner. Hvis sync ryker igjen: tydelig
 advarsel + ingen feil belastningsråd.
+## 🔴 KRITISK (2026-06-26, planlegger) — Journal mobil: datatap + zoom + nav-over-save (`mayo-os/HANDOVER-JOURNAL-UX-AUTOSAVE.md`)
 
-## 🚨 INCIDENT (2026-06-26, planlegger) — Strava-sync død → feil treningsanbefalinger (`HANDOVER-STRAVA-TOKEN-FIX.md`)
+> **Mayo (kritisk):** «journal er så viktig for meg … alt input på mayooran.com må autolagres … det er kritisk.» Han **mistet et langt innlegg** ved å swipe bort før lagring.
+>
+> **Rotårsak (audit fra kode):** tre journal-editorer; kalender-stien bruker den verste. `PageJournal.DateEntrySheet` (:116) = bunn-ark åpnet fra kalenderen, `<textarea>` fontSize 14 (iOS-zoom), **KUN manuell Save, ingen autolagre, ingen kladd** → skriv langt + swipe bort = tapt. Save-knappen nederst **kolliderer med MayoShell bunn-nav** («menylinjen ligger over save»). `FullscreenEditor` (fontSize 14, autolagre men ingen localStorage-kladd/pagehide-flush). `EntryEditor` (fontSize 16.5 OK, men mangler også kladd/flush).
+>
+> **Fiks (handover):** universell regel — synkron localStorage-kladd på hver endring FØR nettverk + gjenopprett ved mount + flush ved `pagehide`/`visibilitychange`/`beforeunload` + tøm kladd kun etter server-2xx + ærlig toast. Per-editor: DateEntrySheet får autolagre + kladd + fontSize 16 + nav-over-save-fiks (hev over bunn-nav / safe-area-padding); FullscreenEditor fontSize 16 + kladd/flush; EntryEditor kladd/flush + detalj-inputs 16. Smoke #26.
+>
+> **Prioritet:** datatap på Mayos viktigste flate → FØRST. Minste blødnings-stopp: kladd + pagehide-flush på DateEntrySheet.
+
+## 🟢 LEVERT (Elmars `32f68a5`) + planlegger-notat — Fail-closed PT-rapport (`HANDOVER-PT-FAILCLOSED.md`)
+
+> Mayo valgte #1; **Elmars leverte den allerede** (`32f68a5` — se detaljseksjon over: stale Strava → ⚠️-banner + dropp belastningsråd, 99/99 PT-tester grønne). Min handover-doc beholdes for den **parede rotårsak-oppfølgingen**: finn HVORFOR `pt_llm.coach_comment` feiler HVER dag (pt_llm.py:138–155 + faktisk exception i logg) — sannsynlig faktisk kilde til «feil anbefalinger», ikke Strava-sync.
+>
+> **Strava dual-rotasjon-diagnose AVKREFTET** (min `HANDOVER-STRAVA-TOKEN-FIX.md`): Elmars verifiserte på VPS (1 token-linje, 0× 400/502, live 200 + 7 økter). Faktisk historisk årsak: 20-dagers **429 rate-limit-tomgang** (06.06→26.06), nå selvhelbredet. Audit→verifiser→**forkast FØR durable-fiks** — rolledelingen virket. §3 (DB-token) + watcher-rate-limit gjenstår som *forebyggende*, ikke akutt.
+
+## 🚨 INCIDENT (2026-06-26, planlegger) — Strava-sync (opprinnelig diagnose — se AVKREFTET over) (`HANDOVER-STRAVA-TOKEN-FIX.md`)
 
 > **Status (Elmars 2026-06-26 20:55):** ikke berørt denne sesjonen — Mayo
 > prioriterte tre-task-batchen + Jarvis-streaming + A4 PDF + parkering før
