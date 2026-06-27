@@ -4,10 +4,149 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-26 · **Av:** planlegger (claude.ai) · **Versjon:** v0.40 INCIDENT: Strava-sync død (dobbel token-rotasjon) — fiks-handover skrevet
+**Sist oppdatert:** 2026-06-27 · **Av:** planlegger (claude.ai) · **Versjon:** v0.44 KRITISK journal-UX/autolagring (handover) · PT LLM-rotårsak = Gemini quota 20/dag (Elmars) · fail-closed PT + long-press levert · Strava-diagnose avkreftet
 
-## 🚨 INCIDENT (2026-06-26, planlegger) — Strava-sync død → feil treningsanbefalinger (`HANDOVER-STRAVA-TOKEN-FIX.md`)
+## 🎯 Nyeste (2026-06-27 09:00) — PT LLM-fallback-bug: rotårsak diagnostisert
 
+**Trigger:** Mayo: «undersøk pt_llm coach_comment fallback-feilen»
+(referansert i forrige STATE som «separat sak»).
+
+### Diagnose (`60fce31`)
+
+**To uavhengige bugs avdekket:**
+
+**1. Logg-bug i `pt_llm.py:155`** — `logger.warning("PT LLM %s feilet (%s)
+→ fallback", model, type(e).__name__)`. Loguru bruker `{}`-format, IKKE
+printf `%s`-args. Args ble ignorert → loggen viste literal `%s feilet (%s)`
+hver dag i ukevis uten å avsløre hvilken modell eller hvilken feil.
+Fix: byttet til `{}`-format + inkluderte feil-melding (kappet 120 char) +
+loggen tom-tekst-fallback eksplisitt (Gemini med thinking-modus kan
+levere "" når reasoning_tokens spiser hele max_tokens).
+
+**2. Gemini 2.5 Flash gratis-tier-quota: 20 RPD** (sitert direkte fra
+API-svaret: `"quotaValue":"20", "model":"gemini-2.5-flash"`). PT-rapport
+bruker 1/dag, men `orchestrator/router.py:759` lar Telegram-bot + web-chat
+bruke `gemini`-aliasen som deler samme key+quota. Mayos chat-bruk fyller
+opp 20-grensen før PT-rapport-cron 06:00 → **pt-daily 429 hver dag** →
+fallback til pt-weekly (Claude Sonnet 4.5) som leverer riktig svar.
+
+### Konsekvens
+- Fallback-kjeden FUNGERER: Claude leverer fornuftige PT-anbefalinger
+  (`PT-blokk fra v3.1 daglig-kort (modell=pt-weekly)` hver dag).
+- Mayo's klage om «feil treningsanbefalinger» **ikke forklart av denne
+  feilen** — pt-weekly (Claude) gir gode råd. Det Mayo merket var i stedet
+  20 dagers Strava-tomgang under 429-rate-limit (allerede løst §4).
+- Stille kostnad: hver fallback til Claude koster ~$0.003. Med ~365 dager
+  = ~$1/år. Trivielt, men ikke gratis som intendert.
+
+### Anbefaling for løsning (avventer Mayos retning — flere alternativer)
+- **(A) Egen Gemini-key for pt-daily** — isolert quota, gratis. Trenger
+  Mayo å opprette ny key i Google AI Studio.
+- **(B) Bytt pt-daily til Claude Haiku** — billig (~$0.0001/kall), aldri
+  429, men ikke gratis.
+- **(C) Bytt pt-daily til Gemini 2.5 Flash-lite** — høyere RPD-grense i
+  gratis-tier. Trenger config-endring i `infra/litellm/config.yaml`.
+- **(D) Gjør ingenting** — fallback fungerer. Bare kostnad + stille
+  diagnose-tap (logg-bug var det viktigste).
+
+### Verifisert
+- 5/5 `test_pt_llm.py` tester grønne
+- Live `coach_comment(card, kind='daily')`: pt-daily 429, fallback til
+  pt-weekly leverer 200-tegns coaching-tekst. Logg nå viser eksakt feil.
+
+## 🎯 Forrige (2026-06-27 08:40) — Strava-incident: diagnose + fail-closed PT-rapport
+
+**Trigger:** HANDOVER-STRAVA-TOKEN-FIX.md (`a530bbe`) — Mayo: «Strava har
+sluttet å synche, får helt feil treningsanbefalinger.»
+
+### Diagnose (`829d551`, full rapport i HANDOVER_RESULT.md)
+
+**Handover-rotårsak AVKREFTET av VPS-data:**
+| Sjekk | Forventet (race-årsak) | Faktisk |
+|---|---|---|
+| `grep -c STRAVA_REFRESH_TOKEN .env` | >1 | **1** — ingen race-spor |
+| 400/502 i logger | mange | **0** noensinne |
+| `fetch_activities(days=14)` live | feil | **HTTP 200, 7 økter** |
+| `/strava` endpoint | tom/feil | **7 økter** |
+| `strava_notified` 14d | tom | **8 rader, siste 26.06** |
+| Strava rate-limit | overskudd | **410/1000 daglig — god margin** |
+
+Faktisk historisk feilmønster: **429 Too Many Requests** på
+`/athlete/activities` fra **2026-06-06 20:20** til **2026-06-26 23:55**
+(20 dager). Aldri 400 fra `/oauth/token`. Sluttet av seg selv.
+
+Sannsynlig faktisk grunn til «feil anbefalinger»:
+1. 20 dagers tomgang under 429 → recency-merge så «ingen ny trening» →
+   gating-input ble systematisk skjev. Den feilen Mayo merket.
+2. **PT LLM feiler hver dag** (`pt_llm:coach_comment:155 - PT LLM %s feilet`).
+   Fallback brukes uavhengig. Separat sak handover ikke nevner.
+
+### Levert (`32f68a5`) — fail-closed PT-rapport (handover §4)
+
+`modules/health/strava_client.py`:
+- Nytt `with_status=True`-arg → returnerer `(workouts, {'stale': bool,
+  'problem': str|None})`. Stale=True ved fetch-exception. Bakover-kompat:
+  uten arg returneres kun listen (psycholog uberørt).
+
+`modules/health/send_report.py`:
+- `main()`: ved `strava_status.stale`: `events=[]`, frekvens-tellingen
+  droppes, ærlig sync-feil-melding erstatter `freshness_flag`. PT-LLM
+  skippes helt — statisk fail-closed-tekst brukes:
+  «Belastningsråd hoppet over — Strava-sync utilgjengelig. Stol på
+  følelse + Whoop. Re-aktiver via /strava-auth hvis dette varer.»
+- `build_message()`: nytt `strava_stale: dict|None`-arg. Ved stale:
+  ⚠️-banner høyt i meldingen mellom header og recovery, med eksakt
+  problem-streng så Mayo ser hva som er galt. Whoop-bidraget kommer
+  fortsatt gjennom; bare belastningsråd droppes.
+
+### 🔴 Disiplin
+- Bedre stille enn selvsikkert feil. Aldri regn anbefaling på data vi
+  ikke har — speiler Whoop `stale`-mønsteret som allerede finnes.
+- Eksakt feilmelding tas med i meldingen → Mayo vet hva som er galt.
+
+### Verifisert
+- 99/99 PT-tester grønne (test_decide, test_okt_logikk, ...)
+- Manuell stale-simulering: banner rendret korrekt, PT-LLM skippet
+- Happy-path build_message identisk med før (null regresjon)
+- Live `fetch_strava_workouts(days=14, with_status=True)`: 7 økter, stale=False
+- Psycholog-callers (reflect.py + on_demand.py): uberørt (bakover-kompat)
+
+### Ikke gjort (avventer Mayos retning)
+- **Handover §3 (DB-backet `service_token` + advisory_lock)**: reell
+  strukturell sårbarhet, men ikke akutt — race har ikke faktisk truffet
+  i loggene. Bygges som planlagt arkitekturarbeid, ikke incident.
+- **Watcher rate-limit-disiplin** (frekvens */5 → */15 + retry-backoff):
+  forebygger neste 20-dagers tomgang. Egen handover hvis Mayo vil.
+- **PT LLM-fallback-feil**: separat undersøkelse — hvorfor feiler
+  `pt_llm.coach_comment` hver dag?
+
+### Cron-test
+Watcheren bruker ny `strava_client` neste 5-minutters-vindu (cron). PT-
+rapport-cron kjører i morgen 06:00 Oslo — første ekte fail-closed-test.
+Hvis sync funker (som nå): null banner. Hvis sync ryker igjen: tydelig
+advarsel + ingen feil belastningsråd.
+## 🔴 KRITISK (2026-06-26, planlegger) — Journal mobil: datatap + zoom + nav-over-save (`mayo-os/HANDOVER-JOURNAL-UX-AUTOSAVE.md`)
+
+> **Mayo (kritisk):** «journal er så viktig for meg … alt input på mayooran.com må autolagres … det er kritisk.» Han **mistet et langt innlegg** ved å swipe bort før lagring.
+>
+> **Rotårsak (audit fra kode):** tre journal-editorer; kalender-stien bruker den verste. `PageJournal.DateEntrySheet` (:116) = bunn-ark åpnet fra kalenderen, `<textarea>` fontSize 14 (iOS-zoom), **KUN manuell Save, ingen autolagre, ingen kladd** → skriv langt + swipe bort = tapt. Save-knappen nederst **kolliderer med MayoShell bunn-nav** («menylinjen ligger over save»). `FullscreenEditor` (fontSize 14, autolagre men ingen localStorage-kladd/pagehide-flush). `EntryEditor` (fontSize 16.5 OK, men mangler også kladd/flush).
+>
+> **Fiks (handover):** universell regel — synkron localStorage-kladd på hver endring FØR nettverk + gjenopprett ved mount + flush ved `pagehide`/`visibilitychange`/`beforeunload` + tøm kladd kun etter server-2xx + ærlig toast. Per-editor: DateEntrySheet får autolagre + kladd + fontSize 16 + nav-over-save-fiks (hev over bunn-nav / safe-area-padding); FullscreenEditor fontSize 16 + kladd/flush; EntryEditor kladd/flush + detalj-inputs 16. Smoke #26.
+>
+> **Prioritet:** datatap på Mayos viktigste flate → FØRST. Minste blødnings-stopp: kladd + pagehide-flush på DateEntrySheet.
+
+## 🟢 LEVERT (Elmars `32f68a5`) + planlegger-notat — Fail-closed PT-rapport (`HANDOVER-PT-FAILCLOSED.md`)
+
+> Mayo valgte #1; **Elmars leverte den allerede** (`32f68a5` — se detaljseksjon over: stale Strava → ⚠️-banner + dropp belastningsråd, 99/99 PT-tester grønne). Min handover-doc beholdes for den **parede rotårsak-oppfølgingen**: finn HVORFOR `pt_llm.coach_comment` feiler HVER dag (pt_llm.py:138–155 + faktisk exception i logg) — sannsynlig faktisk kilde til «feil anbefalinger», ikke Strava-sync.
+>
+> **Strava dual-rotasjon-diagnose AVKREFTET** (min `HANDOVER-STRAVA-TOKEN-FIX.md`): Elmars verifiserte på VPS (1 token-linje, 0× 400/502, live 200 + 7 økter). Faktisk historisk årsak: 20-dagers **429 rate-limit-tomgang** (06.06→26.06), nå selvhelbredet. Audit→verifiser→**forkast FØR durable-fiks** — rolledelingen virket. §3 (DB-token) + watcher-rate-limit gjenstår som *forebyggende*, ikke akutt.
+
+## 🚨 INCIDENT (2026-06-26, planlegger) — Strava-sync (opprinnelig diagnose — se AVKREFTET over) (`HANDOVER-STRAVA-TOKEN-FIX.md`)
+
+> **Status (Elmars 2026-06-26 20:55):** ikke berørt denne sesjonen — Mayo
+> prioriterte tre-task-batchen + Jarvis-streaming + A4 PDF + parkering før
+> Palette Fase 2. Strava-fiks ligger som åpen handover for neste økt.
+>
 > **Symptom (Mayo):** «Strava har sluttet å synche, får helt feil treningsanbefalinger.»
 >
 > **Rotårsak (audit fra kode — Elmars verifiserer på VPS):** TO uavhengige prosesser refresher OG roterer samme Strava engangs-roterende refresh-token, uten delt lås. (1) db-api `strava_module._refresh_access_token` (:68–97), (2) cron `*/5` `strava_watcher.strava_access_token` (:86–104, INGEN caching → ~288 rotasjoner/døgn). Usynkronisert read-modify-write på `.env` → før eller siden strandes en allerede-ugyldiggjort token i fila → hver refresh 400/502 → `fetch_activities` kaster → sync død permanent. **Whoop-dobbeltbindingen (koord.regel #4), strukturell.**
@@ -18,7 +157,71 @@
 >
 > **Planlegger blind på VPS** — audit gjort fra koden; Elmars verifiserer (logg/curl/strava_notified) + implementerer + verifiserer (grunnlov §3).
 
-## 🎯 Nyeste (2026-06-26 20:18) — A4 PDF-eksport av møtereferat LEVERT
+## 🎯 Nyeste (2026-06-26 20:50) — Long-press kontekstmeny på items LEVERT
+
+**Trigger:** Mayo: «Lukk heller den siste småtingen først: long-press
+kontekstmeny … gjenbruk useLongPress, render via SheetHost/openSheet,
+maks 5 handlinger, 🔴 ingen «send til Obs BYGG», outbox + ærlig toast.»
+Avslutter tre-task-batchen ryddig før Palette Fase 2 (parkert til neste økt).
+
+### Levert (FE `e98b64a`)
+
+Tre filer, ÉN logisk endring:
+
+1. **NY `src/mobile/livsplan_v12/itemMenu.jsx`** (~120 linjer)
+   - `ItemMenuSheet` — bottom-sheet med 5 handlinger:
+     ✓ Ferdig · → Utsett til i morgen 09:00 · ▤ Flytt til område ·
+     ✎ Rediger · 🗑 Slett
+   - `AreaPickerSheet` (sub-sheet) — flytt-til-område-velger;
+     filtrerer `ctx.areas` til `a.track !== 'jobb'`
+   - Pulse-guard hindrer dobbel-fire av en rad
+   - Header viser tittel + område-chip i accent-farge
+
+2. **`app.jsx`** — tre nye ctx-helpers
+   - `ctx.snoozeItem(id, isoWhen)` — speiler completeItem-mønsteret.
+     Optimistisk `scheduled_at`+`state='scheduled'`, toast «→ Utsatt ·
+     angre», apiPatch ved UUID, rollback ved feil.
+   - `ctx.setItemArea(id, areaKey)` — defensiv vakt: avviser jobb-mål
+     med ærlig toast. Toast viser navn på mål-område.
+   - `ctx.openItemMenu(id)` — gate på `it.track !== 'jobb'`, åpner
+     ItemMenuSheet via openSheet med område-accent.
+
+3. **`shared.jsx`** — ItemLine-wrapper gjenbruker useLongPress
+   - Hook kalles ALLTID (stabil rekkefølge); handlers spreades kun når
+     `canMenu = !!ctx.openItemMenu && it.track !== 'jobb' && !dragHandle`.
+   - Prio-konteksten (dragHandle=true) bypasser hele wrapperen → bruker
+     custom onPointerDown drag-pickup i triage.jsx (c7bd137). Ingen
+     kollisjon: pointer-events ≠ touch/mouse-events.
+   - Når canMenu=false: identisk oppførsel som før (ingen handlers,
+     ingen click-suppression).
+
+### 🔴 Suverenitet — håndhevet 5 steder (defense in depth)
+1. **shared.jsx wrapper:** `it.track !== 'jobb'`
+2. **ctx.openItemMenu:** defensiv same-sjekk
+3. **ItemMenuSheet:** defensiv `sheet.close` på jobb-item
+4. **ctx.setItemArea:** avviser jobb-mål eksplisitt
+5. **AreaPickerSheet:** filtrerer `ctx.areas` til privat før render
+
+Et privat item kan ALDRI ende opp i et jobb-område via denne menyen.
+Ingen «Send til Obs BYGG»-handling eksisterer.
+
+### Smoke etter deploy
+- **Null regresjon** på berørte ItemLine-veier: #09 mobil-nav ✓,
+  #10 area-overflow ✓, #14 inbox-search ✓, #16 sheet-no-x ✓,
+  #18 palette ✓, #19 kladd ✓.
+- 18/21 totalt. Røde: #02 + #15 pre-existing; #20 flaky
+  (network error mid-stream — Gemma cold-start under full suite-last).
+
+---
+
+## Sesjon parkert — neste opp
+
+Mayo parkerte denne økta før Palette Fase 2 (#3, HANDOVER-PALETTE-PHASE2.md):
+«den har migrasjon 026 + embedding-backfill + suverenitets-ruting, og
+fortjener en fersk økt». Ingenting tapt — handover er fullt specet i
+`99d6e99`. Påbegynnes neste sesjon.
+
+## 🎯 Forrige (2026-06-26 20:18) — A4 PDF-eksport av møtereferat LEVERT
 
 **Trigger:** HANDOVER-MEETING-PDF.md (Mayos prioritet #2). Klient-side
 print → «Lagre som PDF». Privat IVF/helse må aldri server-rendres.
