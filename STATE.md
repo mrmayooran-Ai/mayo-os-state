@@ -4,7 +4,79 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-26 20:55 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.41 Long-press kontekstmeny LEVERT. Sesjon parkert. 🚨 Strava-incident (planlegger) åpen — ikke berørt denne sesjonen.
+**Sist oppdatert:** 2026-06-27 08:40 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.42 Strava-incident DIAGNOSE+FAIL-CLOSED — handover-rotårsak avkreftet, §4 levert. §3 ikke akutt.
+
+## 🎯 Nyeste (2026-06-27 08:40) — Strava-incident: diagnose + fail-closed PT-rapport
+
+**Trigger:** HANDOVER-STRAVA-TOKEN-FIX.md (`a530bbe`) — Mayo: «Strava har
+sluttet å synche, får helt feil treningsanbefalinger.»
+
+### Diagnose (`829d551`, full rapport i HANDOVER_RESULT.md)
+
+**Handover-rotårsak AVKREFTET av VPS-data:**
+| Sjekk | Forventet (race-årsak) | Faktisk |
+|---|---|---|
+| `grep -c STRAVA_REFRESH_TOKEN .env` | >1 | **1** — ingen race-spor |
+| 400/502 i logger | mange | **0** noensinne |
+| `fetch_activities(days=14)` live | feil | **HTTP 200, 7 økter** |
+| `/strava` endpoint | tom/feil | **7 økter** |
+| `strava_notified` 14d | tom | **8 rader, siste 26.06** |
+| Strava rate-limit | overskudd | **410/1000 daglig — god margin** |
+
+Faktisk historisk feilmønster: **429 Too Many Requests** på
+`/athlete/activities` fra **2026-06-06 20:20** til **2026-06-26 23:55**
+(20 dager). Aldri 400 fra `/oauth/token`. Sluttet av seg selv.
+
+Sannsynlig faktisk grunn til «feil anbefalinger»:
+1. 20 dagers tomgang under 429 → recency-merge så «ingen ny trening» →
+   gating-input ble systematisk skjev. Den feilen Mayo merket.
+2. **PT LLM feiler hver dag** (`pt_llm:coach_comment:155 - PT LLM %s feilet`).
+   Fallback brukes uavhengig. Separat sak handover ikke nevner.
+
+### Levert (`32f68a5`) — fail-closed PT-rapport (handover §4)
+
+`modules/health/strava_client.py`:
+- Nytt `with_status=True`-arg → returnerer `(workouts, {'stale': bool,
+  'problem': str|None})`. Stale=True ved fetch-exception. Bakover-kompat:
+  uten arg returneres kun listen (psycholog uberørt).
+
+`modules/health/send_report.py`:
+- `main()`: ved `strava_status.stale`: `events=[]`, frekvens-tellingen
+  droppes, ærlig sync-feil-melding erstatter `freshness_flag`. PT-LLM
+  skippes helt — statisk fail-closed-tekst brukes:
+  «Belastningsråd hoppet over — Strava-sync utilgjengelig. Stol på
+  følelse + Whoop. Re-aktiver via /strava-auth hvis dette varer.»
+- `build_message()`: nytt `strava_stale: dict|None`-arg. Ved stale:
+  ⚠️-banner høyt i meldingen mellom header og recovery, med eksakt
+  problem-streng så Mayo ser hva som er galt. Whoop-bidraget kommer
+  fortsatt gjennom; bare belastningsråd droppes.
+
+### 🔴 Disiplin
+- Bedre stille enn selvsikkert feil. Aldri regn anbefaling på data vi
+  ikke har — speiler Whoop `stale`-mønsteret som allerede finnes.
+- Eksakt feilmelding tas med i meldingen → Mayo vet hva som er galt.
+
+### Verifisert
+- 99/99 PT-tester grønne (test_decide, test_okt_logikk, ...)
+- Manuell stale-simulering: banner rendret korrekt, PT-LLM skippet
+- Happy-path build_message identisk med før (null regresjon)
+- Live `fetch_strava_workouts(days=14, with_status=True)`: 7 økter, stale=False
+- Psycholog-callers (reflect.py + on_demand.py): uberørt (bakover-kompat)
+
+### Ikke gjort (avventer Mayos retning)
+- **Handover §3 (DB-backet `service_token` + advisory_lock)**: reell
+  strukturell sårbarhet, men ikke akutt — race har ikke faktisk truffet
+  i loggene. Bygges som planlagt arkitekturarbeid, ikke incident.
+- **Watcher rate-limit-disiplin** (frekvens */5 → */15 + retry-backoff):
+  forebygger neste 20-dagers tomgang. Egen handover hvis Mayo vil.
+- **PT LLM-fallback-feil**: separat undersøkelse — hvorfor feiler
+  `pt_llm.coach_comment` hver dag?
+
+### Cron-test
+Watcheren bruker ny `strava_client` neste 5-minutters-vindu (cron). PT-
+rapport-cron kjører i morgen 06:00 Oslo — første ekte fail-closed-test.
+Hvis sync funker (som nå): null banner. Hvis sync ryker igjen: tydelig
+advarsel + ingen feil belastningsråd.
 
 ## 🚨 INCIDENT (2026-06-26, planlegger) — Strava-sync død → feil treningsanbefalinger (`HANDOVER-STRAVA-TOKEN-FIX.md`)
 
