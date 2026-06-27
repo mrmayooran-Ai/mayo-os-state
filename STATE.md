@@ -4,9 +4,37 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-27 10:25 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.46 KRITISK journal-datatap-fiks LIVE (3 faser + smoke #26). pt-daily-bytte ikke berørt enda.
+**Sist oppdatert:** 2026-06-27 10:45 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.47 pt-daily → Haiku LIVE + journal-datatap-fiks fortsatt live (begge handovers ferdig).
 
-## 🎯 Nyeste (2026-06-27 10:25) — 🔴 KRITISK: Journal-datatap-fiks LIVE
+## 🎯 Nyeste (2026-06-27 10:45) — pt-daily Gemini → Claude Haiku (`77dba3f`)
+
+**Trigger:** HANDOVER-PT-DAILY-HAIKU.md (planlegger `76f7f14`).
+
+### Endring (1-linje config)
+`infra/litellm/config.yaml` linje 74-77:
+- `pt-daily.model`: `gemini/gemini-2.5-flash` → `claude-haiku-4-5-20251001`
+- `pt-daily.api_key`: `GEMINI_API_KEY` → `ANTHROPIC_API_KEY`
+
+Ingen kodeendring i `pt_llm.py`. PT-koden kaller fortsatt `pt-daily` —
+LiteLLM ruter nå til Haiku. Gemini-aliaset (linje 67) beholdes for andre
+tjenester. Chain forblir `["pt-daily", "pt-weekly", "claude-haiku"]`.
+
+### Verifisert post `docker restart mayo-litellm`
+- `curl pt-daily` smoke: `finish=stop`, `reasoning_tokens=0`, `text_tokens=14`.
+  Ingen Gemini-thinking-mode-tap.
+- `coach_comment()` med ekte PT-payload: `modell="pt-daily"` lyktes,
+  **532-char rik coaching-respons**: «✅ Push A i dag — Bench Press
+  mål 5×5 @ 100kg…». Sammenlignet med Gemini sin trunkerte
+  «Fantastisk restitusjon i» (24 char) eller stille fallback til Sonnet.
+- Loggen vil ved neste cron (06:00 i morgen) IKKE lenger vise
+  `PT LLM pt-daily feilet → fallback` — pt-daily lykkes første gang.
+
+### Kostnad
+~$0.002/dag (~$0.06/mnd) — non-issue. Tidligere fallback til pt-weekly
+(Sonnet, ~$0.003/kall) er erstattet med direkte Haiku → samme størrelse,
+ett ekstra sekund spart per rapport.
+
+## 🎯 Forrige (2026-06-27 10:25) — 🔴 KRITISK: Journal-datatap-fiks LIVE
 
 **Trigger:** Mayo: «mistet et langt journal-innlegg ved swipe-bort … alt
 input på mayooran.com må autolagres … det er kritisk.» HANDOVER-JOURNAL-
