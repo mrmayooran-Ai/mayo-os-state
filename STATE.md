@@ -4,7 +4,19 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-27 · **Av:** planlegger (claude.ai) · **Versjon:** v0.49 Kladd-editor toolbar LEVERT av planlegger (FE `12c168f`, Mayo bedt eksplisitt) — `- ` autocomplete droppet
+**Sist oppdatert:** 2026-06-27 · **Av:** planlegger (claude.ai) · **Versjon:** v0.50 Kladd-cursor-jump fix (`f07b0d2`) — useLayoutEffect + focus-rekkefølge
+
+## 🎯 Nyeste (2026-06-27, planlegger) — Kladd cursor-bug fix (FE `f07b0d2`)
+
+> **Mayo:** «hvorfor hopper innputt markering når jeg skifter linje til siste bokstav i siste linje?»
+>
+> **Rotårsak:** to race-betingelser i cursor-restore etter Enter/toolbar-trykk:
+> 1. `useEffect` + `setTimeout(0)` fyrer ETTER browser paint. Når textarea-`.value` endres programmatisk setter iOS/Chrome `selectionStart` til SLUTTEN av nye verdien som default. Mellom commit og setTimeout ser brukeren markøren ende opp på siste tegn i siste linje (akkurat det Mayo beskrev) — og det første keystroke etter kan lande på feil sted.
+> 2. Kalle-rekkefølgen var `setSelectionRange` → `focus()`. På enkelte iOS-versjoner flytter `focus()` markør tilbake til slutten *etter* setSelectionRange.
+>
+> **Fiks (`f07b0d2`, kladd.jsx):** `useLayoutEffect` (synkron etter commit, før paint) + reversér rekkefølgen (focus først kun hvis ikke allerede fokusert, så setSelectionRange). Markøren er på rett plass før brukeren ser noe som helst. Ingen ny dep.
+
+## 🎯 Forrige (2026-06-27, planlegger) — Kladd-editor toolbar LEVERT (FE `12c168f`)
 
 ## 🎯 Nyeste (2026-06-27, planlegger) — Kladd-editor toolbar LEVERT (FE `12c168f`, pushet rett på `feat/whoop-redesign`)
 
