@@ -4,9 +4,26 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-27 · **Av:** planlegger (claude.ai) · **Versjon:** v0.51 Kladd-tillit + åpne hengesaker (konsolidert handover) etter datatap-skrekk
+**Sist oppdatert:** 2026-06-29 · **Av:** planlegger (claude.ai) · **Versjon:** v0.52 Scan-ingest v2 (kontekst-aware) — bygger på Maris v1, reframet rundt Mayos workflow
 
-## 🎯 Nyeste (2026-06-27, planlegger) — Konsolidert handover etter Mayos datatap-skrekk (`HANDOVER-KLADD-TRUST-AND-OPEN-QUEUE.md`)
+## 🎯 Nyeste (2026-06-29, planlegger) — Skann-til-struktur Pipeline v2 (`HANDOVER-SCAN-INGEST-V2.md`)
+
+> **Trigger:** Maris (annen planlegger-Claude) sendte v1-handover. Mayo ba om review + utvidelse basert på faktisk workflow. Han logger styrke som Strava-aktivitet (match-vindu unødvendig — picker er presisere), vil ha skann-handling i hver kontekst, og auto-convert `- ` → `[ ]` ved OCR-ingest (men ikke ved typing — bevarer 2026-06-27-disiplinen).
+>
+> **Hovedmotivasjon:** fjerner mobil-friksjon for styrkelogging (PageStyrke = smertepunkt). Dette er ikke nice-to-have — det er en blokade Mayo opplever hver gang han trener. Bør prioriteres over Phase 3-spec'ene.
+>
+> **Strukturelle endringer fra Maris v1:**
+> 1. **Skann er en universell handling i-kontekst**, ikke en stand-alone iOS Shortcut. Hver relevant modul-overflate (Styrke, Kladd, Påminnelser) får sin egen «📷 Skann»-inngang. Kontekst gir klassifisering gratis → eliminerer klassifiserings-LLM-steget.
+> 2. **Strava-timestamp-match degraderes til fallback.** Picker («hvilken økt?» fra siste 5) er primær kobling. 4t-vinduet droppes.
+> 3. **Sovereignty per kontekst:** Styrke = trygt direkte til Claude vision; Kladd/Påminnelser = preview-ark FØR sky-send. Maris v1's blanke «N/A» avvist.
+> 4. **`- ` → `[ ]` auto-convert KUN på OCR-tekst.** Mayos typing-flyt bruker `- ` som plain bullet (fastsatt `12c168f`). OCR-tekst er per definisjon eksplisitt fanget → asymmetri korrekt.
+> 5. **iOS Shortcut beholdes som fallback** for ad-hoc skanning uten app-kontekst (Telegram-preview for ruting).
+>
+> **5 faser med STOP-gates:** (0) recon → (1) OCR-motor + CLI [hovedkvalitetsporten] → (2) Styrke-entry [smaleste FE-sti] → (3) Kladd-entry + preview → (4) Påminnelser → (5) iOS Shortcut. Smoke #28/#29/#30. Doc-sync per grunnlov (STATE.md + Notion-arkitektur-doc, IKKE Maris v1's `architecture.yaml`/Mermaid-tvilling).
+>
+> **🛑 STOP-gates:** Fase 0+1 kan starte uten ny «Kjør». Fase 2+ krever Mayo's eksplisitt «Kjør» etter Fase 1-kvalitetstest.
+
+## 🎯 Forrige (2026-06-27, planlegger) — Konsolidert handover etter Mayos datatap-skrekk (`HANDOVER-KLADD-TRUST-AND-OPEN-QUEUE.md`)
 
 > **Mayo-trigger:** trodde to tasks (`ring 91507070` + `svar legen`) var slettet → Elmars verifiserte via SQL at de lå i `state='inbox'` med `deleted_at=NULL`, droppet ut av «denne uken»-fana som filtrerer på `due_at`. Ingen datatap, men sterk UX-svikt: «stille bevegelse» som leser som tap. Mayo flyttet de to manuelt; deretter spurte han hva vi gjør strukturelt, og ba om handover på alle hengesaker.
 >
