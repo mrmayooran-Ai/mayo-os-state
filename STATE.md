@@ -4,9 +4,26 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-27 · **Av:** planlegger (claude.ai) · **Versjon:** v0.50 Kladd-cursor-jump fix (`f07b0d2`) — useLayoutEffect + focus-rekkefølge
+**Sist oppdatert:** 2026-06-27 · **Av:** planlegger (claude.ai) · **Versjon:** v0.51 Kladd-tillit + åpne hengesaker (konsolidert handover) etter datatap-skrekk
 
-## 🎯 Nyeste (2026-06-27, planlegger) — Kladd cursor-bug fix (FE `f07b0d2`)
+## 🎯 Nyeste (2026-06-27, planlegger) — Konsolidert handover etter Mayos datatap-skrekk (`HANDOVER-KLADD-TRUST-AND-OPEN-QUEUE.md`)
+
+> **Mayo-trigger:** trodde to tasks (`ring 91507070` + `svar legen`) var slettet → Elmars verifiserte via SQL at de lå i `state='inbox'` med `deleted_at=NULL`, droppet ut av «denne uken»-fana som filtrerer på `due_at`. Ingen datatap, men sterk UX-svikt: «stille bevegelse» som leser som tap. Mayo flyttet de to manuelt; deretter spurte han hva vi gjør strukturelt, og ba om handover på alle hengesaker.
+>
+> **Mayos valg:** **alternativ A** for Kladd-default — `state='today'` (intent = i dag), ikke inbox. Toolbar-tap ER en intensjon, ikke en kapture-til-glem.
+>
+> **Innhold (5 seksjoner):**
+> - **§1 — Kladd `[]`-høst defaulter til state='today' + due_at=i dag.** Én linje BE i `note_module._parse_and_harvest:124–129`. Ingen migrasjon av eksisterende inbox-items. Smoke #19 oppdatert.
+> - **§2 — Smoke-forurensing.** Engangs-SQL for å rydde Mayos inbox for `ring tannlegen kladd-smoke-*`. Permanent: smoke #19 må selv-rydde (try/finally → DELETE /notes/{id} + DELETE /items/{id}).
+> - **§3 — Smoke #27 for Kladd-toolbar.** Beskytter `12c168f`/`0bb9b43` (toolbar + setRangeText cursor-fix). Inkluderer cursor-regresjons-vakt mot Mayo-bug 2026-06-27.
+> - **§4 — Strava-forebygging.** §4a watcher rate-limit-disiplin (*/5→*/15 + 429-backoff). §4b DB-backet `service_token` + `pg_advisory_xact_lock` (durabel fiks for dual-rotasjons-strukturen).
+> - **§5 — Parkerte tråder.** 404 swipe (ikke reprod), PT_LLM Gemini-quota (mitigert via Haiku-bytte, prinsipp dokumenteres i CLAUDE.md).
+>
+> **🛑 STOPP-gate:** §1–§3 forhåndsgodkjent. §4a kan kjøres samme økt. **§4b krever ny «Kjør»** (migrasjon + transaksjons-lås).
+>
+> Phase 3-handovers (Jarvis sky-streaming, inline ⌘J, private møter søkbare) + Palette Fase 2 ligger fortsatt klare, IKKE i denne handoveren — venter egne «Kjør».
+
+## 🎯 Forrige (2026-06-27, planlegger) — Kladd cursor-bug fix (FE `f07b0d2`)
 
 > **Mayo:** «hvorfor hopper innputt markering når jeg skifter linje til siste bokstav i siste linje?»
 >
