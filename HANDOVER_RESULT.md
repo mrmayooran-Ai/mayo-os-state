@@ -1,113 +1,197 @@
-# HANDOVER_RESULT — Strava-sync diagnose (2026-06-27)
+# HANDOVER_RESULT — scan_ingest Fase 0 (recon) (2026-06-29)
 
 **Til:** planlegger-sesjon (claude.ai)
 **Fra:** Elmars (VPS-Claude)
-**Trigger:** `HANDOVER-STRAVA-TOKEN-FIX.md` (a530bbe) — Mayo: «Strava har sluttet
-å synche, får helt feil treningsanbefalinger.»
+**Trigger:** `HANDOVER-SCAN-INGEST-V2.md` (`c3b6696`) — Fase 0+1 forhåndsgodkjent.
 
-## Hovedfunn — handover-diagnose passer IKKE med data fra VPS
+## Sammendrag
 
-Den hypotiserte rotårsaken (dobbel refresh-token-rotasjon → strandet
-ugyldiggjort token i `.env` → permanent 400/502) er **avkreftet** av live-
-verifisering på VPS. Faktisk symptom var noe annet, og er allerede borte
-ved diagnose-tidspunktet.
+Fase 0 ferdig. Ett **signifikant skjema-mismatch** mellom handover og virkelighet:
+`strength_session.sets` er **jsonb-felt på session-tabellen**, ikke separat
+`strength_sets`-tabell som handoveren antar. Påvirker hele Fase 2-design (BE må
+PATCHe jsonb, ikke INSERT i raddtabell). Alt annet i Fase 0 forløp uten overraskelser.
 
-### Det jeg verifiserte (alle steg per handover §2 + utvidet)
+🛑 STOP før Fase 1 oppnådd. Starter Fase 1 i samme commit-kø hvis du sier OK.
 
-| Sjekk | Forventet ved race-rotårsak | Faktisk |
-|---|---|---|
-| `grep -c STRAVA_REFRESH_TOKEN .env` | > 1 (race-spor) | **1** — ingen duplikat-linjer |
-| db-api journal siste 24t | «Strava token refresh feilet», 400/502 | **Stille** — ingen Strava-relaterte feil |
-| Cron-logg (`/home/mayo/.mayo-strava-watcher.log`) | 400/502 fra `/oauth/token` | **0 token-refresh-feil noensinne i loggen** |
-| `SELECT MAX(start_at) FROM strava_notified` | Stoppet for lengst | **8 rader siste 14 dager, siste 2026-06-26** — sync har levert |
-| `await fetch_activities(days=14)` live mot Strava | 400/502 | **HTTP 200, 7 aktiviteter** |
-| Strava rate-limit-headers (live nå) | I overkant | **Read: 16/100 (15min), 410/1000 (daglig)** — komfortabel margin |
-| `curl /strava?days=14` m/ X-VPS-Token | Tomt/feil | **7 aktiviteter, type WeightTraining** |
+---
 
-Refresh-tokenet er gyldig. Endepunktet fungerer. Sync-pipelinen er levende.
+## 1. LiteLLM vision-tilgang ✅
 
-### Faktisk historisk feilmønster (lest fra loggen)
+**Tilgjengelige modeller i gateway** (live `GET /v1/models`):
+`aurora · aurora-8b · lokal · embed · privat · claude · claude-haiku · gemini · pt-daily · pt-weekly`
 
-**Ikke** 400 fra `/oauth/token` — det var **429 Too Many Requests** fra
-`https://www.strava.com/api/v3/athlete/activities?per_page=5`:
+**Vision-test mot `claude-haiku`-aliaset** (Claude Haiku 4.5,
+`claude-haiku-4-5-20251001`): grønn. Sendte 8×8 PNG via base64 i
+`image_url`-content; modellen svarte med beskrivelse av bildet. Status:
+`finish_reason="length"` (max_tokens=50 var lavt), tekst: «Jeg ser et lite grått
+ikon eller symbol …».
 
-- **Første 429:** 2026-06-06 20:20
-- **Siste 429:** 2026-06-26 23:55 (~7 timer før diagnose)
-- **20 dager med 429** på `/athlete/activities`-kallene, men aldri på
-  `/oauth/token` (refresh)
+**Anbefaling for `scan-ocr`-alias:**
+- Handover §4 spec'er `claude-3-5-sonnet-20241022`. Det er fortsatt en gyldig
+  vision-modell og finnes i Anthropic-API.
+- Men **claude-haiku 4.5** (allerede i config, nyere) gir ~6× lavere kostnad
+  (~$1/M input + $5/M output vs ~$3/M + $15/M) med god håndskrift-kvalitet.
+- Forslag: start med `claude-haiku-4-5-20251001` som `scan-ocr` → bytt til
+  Sonnet hvis Mayos kvalitetstest viser at Haiku mister detaljer.
 
-Sannsynlig årsak: read-rate-limit-burst på `/athlete/activities`. Watcheren
-poller `per_page=5` hvert 5. minutt (~288×/døgn) + db-api `_fetch_apps_script`
-+ kanskje en periode hvor en annen klient pushet over 100/15min eller
-1000/døgn-grensen. 429-perioden sluttet av seg selv 26.06 23:55 —
-sannsynligvis fordi Strava's read-rate-vindu rullet, eller noe annet
-kall-mønster ble redusert.
+**Hva må gjøres for Fase 1:** legg til `scan-ocr`-alias i
+`infra/litellm/config.yaml`:
+```yaml
+  - model_name: "scan-ocr"
+    litellm_params:
+      model: "claude-haiku-4-5-20251001"   # start her; bytt om kvalitet svikter
+      api_key: "os.environ/ANTHROPIC_API_KEY"
+```
+Restart `mayo-litellm` etter. `pt_llm.py`-mønsteret (alias-baseret routing)
+gjenbrukes; ingen ny dep.
 
-Watcheren håndterte 429 ved å logge `ERROR Klarte ikke liste aktiviteter`
-(strava_watcher.py:515) og returnere uten å re-prøve. Ingen retry-backoff
-implementert.
+---
 
-### Konsekvens for «feil treningsanbefalinger»
+## 2. strength_session-skjema 🚨 (handover-antakelse FEIL)
 
-PT-rapporten (`infra/scripts/mayo-health-report.sh` → `modules/health/send_report.py`)
-kjørte hver morgen 06:00 også under 429-perioden:
+Handover §2.1 sier «INSERT-er rader i `strength_sets` koblet til den session».
+**`strength_sets`-tabellen finnes ikke.**
 
-| Dato | Gating | Forslag | LLM-status |
-|---|---|---|---|
-| 2026-06-24 | RØD | Z1 — gåtur 30-45 min eller hvile | `PT LLM feilet → fallback` |
-| 2026-06-25 | GRØNN | Legs B — posterior | `PT LLM feilet → fallback` |
-| 2026-06-26 | GUL | Z2 fastet 45–60 min | `PT LLM feilet → fallback` |
-| 2026-06-27 | GRØNN | Legs B — posterior | `PT LLM feilet → fallback` |
+Faktisk skjema:
+```
+Table "public.strength_session"
+   Column   |           Type           | Nullable |    Default
+------------+--------------------------+----------+---------------
+ id         | bigint                   | not null | nextval(...)
+ user_id    | text                     | not null |
+ ts         | timestamp with time zone | not null |
+ name       | text                     | not null | ''
+ note       | text                     | not null | ''
+ sets       | jsonb                    | not null | '[]'
+ created_at | timestamp with time zone | not null | now()
+```
 
-To uavhengige problemer som forklarer Mayos klage:
+- `user_id` er **TEXT** (de andre tabellene bruker UUID — `item.user_id`,
+  `note.user_id`, etc). Sannsynligvis legacy. Må håndteres egen i Fase 2.
+- `sets` er **jsonb-array**, ikke fremmednøkler til en raddtabell.
+- **Ingen** `strength_sets`-tabell, ingen separate set-rader, ingen
+  fremmednøkler å validere mot.
 
-1. **20 dagers tomgang på fersk treningsdata under 429-perioden** →
-   recency-merge så «ingen ny trening» → coachens gating-input ble
-   systematisk skjev. Mayo merket dette som «feil belastningsråd».
-2. **PT LLM feiler hver dag** (`pt_llm:coach_comment:155 - PT LLM %s feilet`
-   → fallback). Fallback-tekst brukes uavhengig av om Strava-data finnes.
-   Dette er en separat sak handoveren ikke nevner.
+**Implikasjon for Fase 2:**
+- BE-endepunktet (`POST /scan/ingest/strength`) må **PATCHe**
+  `strength_session.sets`-jsonb (append eller replace), ikke INSERT i en tabell.
+- Reversibilitet: jsonb-PATCH er litt mindre granulært, men en undo-strategi
+  kan beholde gammel `sets`-versjon (last-write-wins eller versjonsstemplet).
+- Spør Mayo: «Skal skannede sett **erstatte** eller **legges til** eksisterende
+  `sets`-array på den valgte sessionen?» Default-antakelse: append (han logger
+  flere sett underveis).
 
-## Hva jeg har IKKE gjort (avventer Mayos avgjørelse — diagnose endrer scope)
+`session_insight` (annen tabell) refererer til `strength_session(id)` med
+fremmednøkkel — den må ikke brytes ved PATCH.
 
-Handover §3 (DB-backet `service_token` + `pg_advisory_xact_lock`) løser en
-**reell strukturell sårbarhet** (to rotatorer er fortsatt et latent
-race-spor — vi var heldige i denne perioden). Men det er **ikke akutt**:
-sync fungerer, og det var ikke token-rotasjonen som forårsaket symptomet.
+---
 
-Spurte ikke Mayo om å re-OAuthe — token er gyldig, det ville være no-op
-med risiko (avbryter pågående gyldig refresh; ekstra `.env`-skriving som
-selv kan trigge race vi vil unngå).
+## 3. Epley 1RM-util — kun i FE
 
-### Anbefaling for neste steg, i prioritet
+**Backend:** ingen Epley-util. Hverken i `db_api/`, `modules/health/`, eller
+PT-laget. Strength-modulen er i hovedsak FE.
 
-1. **Fail-closed på PT-rapport** (handover §4) — fortsatt høyverdig. Speil
-   Whoop `stale`-mønsteret i `strava_watcher.py:391` til PT-rapporten. Hvis
-   Strava-data > 48t gammel: «Strava utdatert, hopper over belastningsråd»
-   heller enn selvsikker fallback. **Dette er det som faktisk traff Mayo.**
-2. **PT LLM-fallback-problem** — separat undersøkelse. Hvorfor feiler
-   `pt_llm.coach_comment` hver dag? Sannsynligvis relatert til «feil
-   anbefalinger» Mayo opplevde.
-3. **Watcher rate-limit-disiplin:**
-   - Reduser frekvens fra `*/5` til `*/15` eller `*/30` (288/døgn → 96/døgn
-     eller 48/døgn), eller
-   - Implementér retry-with-backoff på 429 + caching av activities-listen i
-     30 min så vi ikke poller hver 5. min for samme data.
-4. **Durable fiks (handover §3)** — bygges som planlagt arkitekturarbeid,
-   ikke incident-respons. Den er fortsatt riktig på sikt; bare ikke akutt.
+**Frontend:**
+- `src/lib/strength.js:13` — `export const epley = (weight, reps) => weight * (1 + reps / 30);`
+- `src/mobile/pages/PageStyrke.jsx:152` — `const _epley = (weight, reps) => (weight || 0) * (1 + (reps || 0) / 30);`
 
-## Re-auth-URL (hvis Mayo VIL gjøre det allikevel)
+**Implikasjon for Fase 2:** OCR → parsed sets (kg + reps) lagres som de er;
+Epley-beregning skjer fortsatt FE-side ved fremstilling. Ingen BE-Epley nødvendig.
 
-`STRAVA_PUBLIC_BASE_URL=https://mayooran.com/api` → eksakt URL:
+Note: `src/lib/strength.js:620` har en kommentar «dropp e1RM, vis faktisk
+maksløft». Dette indikerer at Mayo har bevisst nedprioritert Epley i UI — vi
+trenger ikke aktivere flere e1RM-paths i skann-flyten.
 
-**https://mayooran.com/api/strava-auth**
+---
 
-Åpnes i nettleser → redirect til Strava → callback skriver fersk token.
-Funksjonelt unødvendig (gyldig token er aktiv), men trygt å gjøre.
+## 4. reminders — modul finnes ✅
 
-## STATE-oppdatering
+- **Tabell** `reminder`: 18 kolonner inkl. `title`, `description`, `due_at`,
+  `tags[]`, `priority`, `list_name`, `completed`. iCloud-synket
+  (`icloud_uid`, `icloud_etag`, `last_synced_at`).
+- **user_id**: uuid (konsistent med item/note).
+- **Endepunkter** i `db_api/reminders_module.py`:
+  - `GET /reminders`
+  - `GET /reminders/lists`
+  - `POST /reminders` (linje 134 — sannsynligvis det Fase 4 trenger)
+  - `POST /reminders/sync`
+  - `POST /reminders/bulk-sync`
 
-Speiler dette funnet til STATE.md som siste handling, med klar markering
-av at handover-diagnose er avkreftet og scope må omforhandles med Mayo.
+**Implikasjon for Fase 4:** `POST /reminders` finnes; kan kalles direkte fra
+scan_ingest med parsed linje + dato + område. Påminnelser-modulen kjører i
+produksjon, ingen ny scope-utvidelse trengs.
 
-— Elmars 2026-06-27 07:05 UTC
+**FE-flate**: Reminders er allerede i Apple Reminders + sync til `item`-tabell
+(via `item.source='reminder'`). Det finnes ikke en dedikert «PageReminders» —
+de vises i `/tasks`/Livsplan via unified-feeden. Fase 4 må enten:
+- (a) bygge ny `PageReminders` for skann-knappen, eller
+- (b) legge skann-knappen i kalender-/dato-arket der reminder opprettes idag.
+Anbefaling: **spør Mayo i Fase 4-start** hvilken han foretrekker.
+
+---
+
+## 5. Vault-skrivesti — gjenbruk eksisterende
+
+`note_module.py::_write_to_vault` (linje ~81):
+```python
+NOTES_DIR.mkdir(parents=True, exist_ok=True)
+path = NOTES_DIR / f"{note_date}.md"
+# header = "# {title}\n\n" hvis tittel finnes
+path.write_text(header + body_md, encoding="utf-8")
+```
+
+`NOTES_DIR` = `MayoVault/notater/`. Idempotent overskriving. Filer ligger med
+`<note_date>.md`-navn (siste fil sett: `2026-06-26.md`).
+
+**Implikasjon for Fase 3 (Kladd-skann):** når Mayo bekrefter preview → kall
+eksisterende `POST /notes` med `body_md` = parsed OCR-tekst. `note_module`
+tar seg av vault-skriving automatisk via `_write_to_vault`. **Ingen ny vault-
+skrivesti trengs.**
+
+**`MayoVault/skann/`** for ad-hoc Shortcut-stien (Fase 5): kan opprettes ved
+behov, men anbefal Mayo skipper det og lar alt ligge i `notater/` med en
+`#skann`-tag i front-matter (enklere søk).
+
+---
+
+## 6. PageStyrke.jsx — fil-struktur ✅
+
+- Fil: `src/mobile/pages/PageStyrke.jsx`
+- Routes: `src/routes/strength/Strength.jsx` (desktop) + `src/lib/strength.js` (util)
+- PageStyrke er ~2700 linjer (stor). Topp-handlingsrad må **identifiseres
+  presist** i Fase 2 — den er nede i komponent-treet, ikke åpenbart eksponert i
+  topp-grepet jeg gjorde.
+- Anbefal: når Fase 2 starter, naviger PageStyrke i nettleser først,
+  identifiser visuelt hvor «Ny økt»/«Historikk»-knappene sitter, så match til
+  kode med en mer presis grep eller `git blame`.
+
+---
+
+## Anbefalinger for Fase 1
+
+1. **Module-layout:** lag `modules/scan_ingest/` med:
+   - `__init__.py`
+   - `ocr_engine.py` — `async def transcribe(image_bytes: bytes, *, hint: str = "") -> str`
+   - `cli.py` — `python -m scan_ingest.ocr <bilde-sti>`
+2. **Engine-impl:** kall LiteLLM-gateway `scan-ocr`-alias med
+   `image_url`/`base64`-content. Hint sendes som system-prompt-suffix.
+3. **CLI:** ta filsti(er) som arg, print rå transkripsjon for hver. Mayo
+   trenger denne for å sende 3-5 ark og dømme kvalitet.
+4. **Ingen DB-skriving i Fase 1.** Bare OCR-motor + CLI.
+
+**STOP-gate (handover §7):** etter Fase 1 må Mayo kjøre CLI mot test-ark og
+godkjenne tyde-kvalitet før Fase 2.
+
+## Konkret Fase 1-plan
+
+a. Legg til `scan-ocr`-alias i `infra/litellm/config.yaml` (Claude Haiku 4.5).
+b. `docker restart mayo-litellm` + curl-smoke-test mot vision-aliaset.
+c. Lag `modules/scan_ingest/` med `ocr_engine.py` + `cli.py`.
+d. Skriv en kort `README.md` med CLI-bruksanvisning.
+e. Commit + push + STATE.
+
+Avventer Mayos signal før commit av §1 (Fase 1) hvis preferansen er å se
+recon-funnene først; ellers kan jeg fortsette direkte siden Mayo allerede
+forhåndsgodkjente Fase 1.
+
+— Elmars 2026-06-29

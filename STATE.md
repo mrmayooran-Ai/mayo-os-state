@@ -4,9 +4,150 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-27 10:45 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.47 pt-daily → Haiku LIVE + journal-datatap-fiks fortsatt live (begge handovers ferdig).
+**Sist oppdatert:** 2026-06-29 14:35 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.53 scan_ingest Fase 0+1 LEVERT — CLI klar for Mayos kvalitetstest
 
-## 🎯 Nyeste (2026-06-27 10:45) — pt-daily Gemini → Claude Haiku (`77dba3f`)
+## 🎯 Nyeste (2026-06-29 14:35) — scan_ingest Fase 0+1 LEVERT (avventer Mayos test-ark)
+
+**Trigger:** HANDOVER-SCAN-INGEST-V2.md (planlegger `c3b6696`). Fase 0+1
+forhåndsgodkjent. Mayo: «jobb autonomt, ikke spør meg lenger, ja til alt».
+
+### Fase 0 — Recon (`7c7a44d`)
+
+Recon avdekket ÉN signifikant skjema-mismatch som påvirker Fase 2-design:
+
+**🚨 `strength_session.sets` er jsonb, ikke separat `strength_sets`-tabell.**
+Handover-§2.1 antar INSERT i raddtabell — det stemmer ikke. Fase 2-BE må
+PATCHe jsonb-feltet (append/replace). `user_id` på strength_session er
+også TEXT, ikke UUID (legacy — håndteres egen).
+
+Andre funn (alle uten overraskelser):
+- LiteLLM vision via `claude-haiku-4-5` grønn (live test mot 8×8 PNG).
+- Epley 1RM kun i FE (`src/lib/strength.js`, `PageStyrke.jsx:152`) —
+  ingen BE-Epley nødvendig.
+- `reminders`-modul kjører i prod (`POST /reminders` finnes); Fase 4
+  trenger ingen scope-utvidelse.
+- Vault gjenbrukes via `note_module._write_to_vault` (NOTES_DIR =
+  `MayoVault/notater/`).
+- PageStyrke.jsx ~2700 linjer; topp-handlingsrad må identifiseres
+  visuelt i Fase 2.
+
+Full diagnose i `HANDOVER_RESULT.md`.
+
+### Fase 1 — OCR-motor + CLI (`a18031e`)
+
+`infra/litellm/config.yaml` — ny `scan-ocr`-alias:
+- model: `claude-haiku-4-5-20251001` (~$3/mnd ved 5-10 skann/dag)
+- Sonnet ville vært ~$18/mnd; bytter hvis Mayos kvalitetstest svikter
+- Live: `GET /v1/models` viser scan-ocr post-restart
+
+`modules/scan_ingest/`:
+- `ocr_engine.py` (~140 linjer): `async transcribe(image_bytes, *, hint="")`
+  - LiteLLM-routing via `OCR_MODEL`-env (samme mønster som pt_llm)
+  - System-prompt: «ordrett transkripsjon, behold linjeskift,
+    `?` på uleselige tegn, IKKE tolk»
+  - temperature=0.0, max_tokens=2000 (en hel A4)
+  - `OcrError` ved alle feiltilstander — caller skal vise rå-bildet
+- `cli.py` (~110 linjer): `python -m scan_ingest.cli <bilde> [...]`
+  - Auto-hint på filnavn (styrke-*/kladd-*/paaminnelse-*)
+  - Stdout rå-tekst (pipe-vennlig), stderr status
+- `README.md` — bruksanvisning + STOP-gate
+
+Live-verifisert:
+- PIL-generert «Knebøy 100kg x 5 x 3 / Markløft 140kg x 3» → tall
+  100 % presist transkribert (æøå-feil var PIL-font, ikke OCR)
+- CLI mot test-paaminnelse.jpg: auto-hint detektert, 3 linjer korrekt
+- Engine ingen DB-skriving, ingen sideeffekter — pur funksjon
+
+### 🛑 STOP — venter Mayos 3-5 test-ark
+
+Per handover §7: Mayo må kjøre CLI mot ekte ark og dømme tyde-kvalitet
+før Fase 2 startes. Fase 2+ (DB-skriving) krever ny «Kjør».
+
+Bruksanvisning når test-ark kommer:
+```
+cd ~/mayo-ai-os
+/home/mayo/mayo-ai-os/orchestrator/.venv/bin/python -m scan_ingest.cli ark1.jpg ark2.jpg
+```
+
+## 🎯 Forrige (2026-06-29, planlegger) — Skann-til-struktur Pipeline v2 (`HANDOVER-SCAN-INGEST-V2.md`)
+
+> **Trigger:** Maris (annen planlegger-Claude) sendte v1-handover. Mayo ba om review + utvidelse basert på faktisk workflow. Han logger styrke som Strava-aktivitet (match-vindu unødvendig — picker er presisere), vil ha skann-handling i hver kontekst, og auto-convert `- ` → `[ ]` ved OCR-ingest (men ikke ved typing — bevarer 2026-06-27-disiplinen).
+>
+> **Hovedmotivasjon:** fjerner mobil-friksjon for styrkelogging (PageStyrke = smertepunkt). Dette er ikke nice-to-have — det er en blokade Mayo opplever hver gang han trener. Bør prioriteres over Phase 3-spec'ene.
+>
+> **Strukturelle endringer fra Maris v1:**
+> 1. **Skann er en universell handling i-kontekst**, ikke en stand-alone iOS Shortcut. Hver relevant modul-overflate (Styrke, Kladd, Påminnelser) får sin egen «📷 Skann»-inngang. Kontekst gir klassifisering gratis → eliminerer klassifiserings-LLM-steget.
+> 2. **Strava-timestamp-match degraderes til fallback.** Picker («hvilken økt?» fra siste 5) er primær kobling. 4t-vinduet droppes.
+> 3. **Sovereignty per kontekst:** Styrke = trygt direkte til Claude vision; Kladd/Påminnelser = preview-ark FØR sky-send. Maris v1's blanke «N/A» avvist.
+> 4. **`- ` → `[ ]` auto-convert KUN på OCR-tekst.** Mayos typing-flyt bruker `- ` som plain bullet (fastsatt `12c168f`). OCR-tekst er per definisjon eksplisitt fanget → asymmetri korrekt.
+> 5. **iOS Shortcut beholdes som fallback** for ad-hoc skanning uten app-kontekst (Telegram-preview for ruting).
+>
+> **5 faser med STOP-gates:** (0) recon → (1) OCR-motor + CLI [hovedkvalitetsporten] → (2) Styrke-entry [smaleste FE-sti] → (3) Kladd-entry + preview → (4) Påminnelser → (5) iOS Shortcut. Smoke #28/#29/#30. Doc-sync per grunnlov (STATE.md + Notion-arkitektur-doc, IKKE Maris v1's `architecture.yaml`/Mermaid-tvilling).
+>
+> **🛑 STOP-gates:** Fase 0+1 kan starte uten ny «Kjør». Fase 2+ krever Mayo's eksplisitt «Kjør» etter Fase 1-kvalitetstest.
+
+## 🎯 Forrige (2026-06-27, planlegger) — Konsolidert handover etter Mayos datatap-skrekk (`HANDOVER-KLADD-TRUST-AND-OPEN-QUEUE.md`)
+
+> **Mayo-trigger:** trodde to tasks (`ring 91507070` + `svar legen`) var slettet → Elmars verifiserte via SQL at de lå i `state='inbox'` med `deleted_at=NULL`, droppet ut av «denne uken»-fana som filtrerer på `due_at`. Ingen datatap, men sterk UX-svikt: «stille bevegelse» som leser som tap. Mayo flyttet de to manuelt; deretter spurte han hva vi gjør strukturelt, og ba om handover på alle hengesaker.
+>
+> **Mayos valg:** **alternativ A** for Kladd-default — `state='today'` (intent = i dag), ikke inbox. Toolbar-tap ER en intensjon, ikke en kapture-til-glem.
+>
+> **Innhold (5 seksjoner):**
+> - **§1 — Kladd `[]`-høst defaulter til state='today' + due_at=i dag.** Én linje BE i `note_module._parse_and_harvest:124–129`. Ingen migrasjon av eksisterende inbox-items. Smoke #19 oppdatert.
+> - **§2 — Smoke-forurensing.** Engangs-SQL for å rydde Mayos inbox for `ring tannlegen kladd-smoke-*`. Permanent: smoke #19 må selv-rydde (try/finally → DELETE /notes/{id} + DELETE /items/{id}).
+> - **§3 — Smoke #27 for Kladd-toolbar.** Beskytter `12c168f`/`0bb9b43` (toolbar + setRangeText cursor-fix). Inkluderer cursor-regresjons-vakt mot Mayo-bug 2026-06-27.
+> - **§4 — Strava-forebygging.** §4a watcher rate-limit-disiplin (*/5→*/15 + 429-backoff). §4b DB-backet `service_token` + `pg_advisory_xact_lock` (durabel fiks for dual-rotasjons-strukturen).
+> - **§5 — Parkerte tråder.** 404 swipe (ikke reprod), PT_LLM Gemini-quota (mitigert via Haiku-bytte, prinsipp dokumenteres i CLAUDE.md).
+>
+> **🛑 STOPP-gate:** §1–§3 forhåndsgodkjent. §4a kan kjøres samme økt. **§4b krever ny «Kjør»** (migrasjon + transaksjons-lås).
+>
+> Phase 3-handovers (Jarvis sky-streaming, inline ⌘J, private møter søkbare) + Palette Fase 2 ligger fortsatt klare, IKKE i denne handoveren — venter egne «Kjør».
+
+## 🎯 Forrige (2026-06-27, planlegger) — Kladd cursor-bug fix (FE `f07b0d2`)
+
+> **Mayo:** «hvorfor hopper innputt markering når jeg skifter linje til siste bokstav i siste linje?»
+>
+> **Rotårsak:** to race-betingelser i cursor-restore etter Enter/toolbar-trykk:
+> 1. `useEffect` + `setTimeout(0)` fyrer ETTER browser paint. Når textarea-`.value` endres programmatisk setter iOS/Chrome `selectionStart` til SLUTTEN av nye verdien som default. Mellom commit og setTimeout ser brukeren markøren ende opp på siste tegn i siste linje (akkurat det Mayo beskrev) — og det første keystroke etter kan lande på feil sted.
+> 2. Kalle-rekkefølgen var `setSelectionRange` → `focus()`. På enkelte iOS-versjoner flytter `focus()` markør tilbake til slutten *etter* setSelectionRange.
+>
+> **Fiks (`f07b0d2`, kladd.jsx):** `useLayoutEffect` (synkron etter commit, før paint) + reversér rekkefølgen (focus først kun hvis ikke allerede fokusert, så setSelectionRange). Markøren er på rett plass før brukeren ser noe som helst. Ingen ny dep.
+
+## 🎯 Forrige (2026-06-27, planlegger) — Kladd-editor toolbar LEVERT (FE `12c168f`)
+
+## 🎯 Nyeste (2026-06-27, planlegger) — Kladd-editor toolbar LEVERT (FE `12c168f`, pushet rett på `feat/whoop-redesign`)
+
+> **Mayo:** Elmars var uten SSH (sannsynligvis fail2ban/lockdown), så han ba meg implementere selv. Lav-risiko UX-fiks, ingen BE. Pushet direkte → auto-deploy live.
+>
+> **Spec-justering midt i implementasjon (viktig):** Mayos oppfølging viste at `- ` i hans faktiske bruk er **plain bullet under headings**, IKKE task-trigger. Eksempel han sendte:
+> ```
+> Enter forsikring
+>     - ring 91507070 og vise til deres referanse N1396885-ZH51578.
+> ```
+> Han vil **velge fra picker** hvilke bullets som blir tasks, ikke ha alle `- ` auto-konvertert. **Autocomplete-delen av handoveren ble derfor DROPPET.** Toolbar + Enter-auto-continue beholdt.
+>
+> **Levert (`12c168f`, `src/mobile/livsplan_v12/kladd.jsx`):**
+> - Slank toolbar over textarea: «☐ Oppgave» og «• Punkt». `onMouseDown preventDefault` holder textarea-fokus så virtuelt iOS-tastatur ikke kollapser.
+> - `togglePrefix(targetPrefix)` opererer på markørens linje: samme prefiks → toggle av; annet prefiks → erstatt; intet prefiks → sett inn foran første ikke-whitespace-tegn (bevarer leading-indent). Caret-posisjon bevares via `pendingCursorRef` + `useEffect`.
+> - Enter på prefiks-linje fortsetter: alle checkbox-former (`[]`/`[ ]`/`[x]`) → fresh `[] ` (så hver ny linje også blir task); bullet-former (`• `/`- `/`* `) → behold samme prefiks. Tom prefiks-linje → fjern prefiksen (klassisk markdown-break-out).
+> - Autosave/outbox uberørt — `writeBody` helper setter `dirty` + `writeOutbox` identisk med original `onChange`.
+> - Backend regex `note_module._RE_EMPTY` (linje 75) aksepterer allerede `[-*•]\s*` foran `[]` → ingen BE-endring.
+>
+> **Workflow:** Mayo skriver fritt (headings + `- ` bullets); når han vil at en linje skal bli task, setter han markøren der + tapper «☐ Oppgave» → linja blir `[] …` → backend høster til privat inbox.
+>
+> **Smoke #27** (spec'et i handover) — IKKE skrevet av meg; Elmars legger til når SSH er tilbake.
+
+> **Mayo:** «Jeg bruker ikke `[]` — vanskelig å finne på tastatur desktop+mobil. Vil at `-` skal bli `[]`, men enda bedre: en editor hvor jeg kan velge format som punktliste og `[]` selv.»
+>
+> **Sjekkpunkt før spec:** møte-«Notater»-fanen er også ren `<textarea>` — det Mayo refererer til er bullets-strukturen i møte-sammendraget (ObsDetail.jsx:1292–1299, «+ bullet»). Vi tar interaksjonsmønsteret (knapp som setter prefiks), ikke struktur (Kladd skal være fritekst, ikke Notion).
+>
+> **🟢 Frikort:** `note_module._RE_EMPTY` regex (line 75) **aksepterer allerede `[-*•]\s*`-prefiks** før `[]` — så `- [] task`, `• [] task` og `[] task` høstes ALLE likt. **Ingen BE-endring.** Ren FE-fiks i `kladd.jsx`.
+>
+> **Spec (4 deler):** (1) Slank toolbar over textarea med to knapper — «☐ Oppgave» (setter `[] ` på linjestart) + «• Punkt» (`• `), toggle av/på, caret-bevarende. (2) `- ` på linjestart → autocomplete til `[] ` (gjenkjenner KUN umiddelbart etter mellomrom-trykket, ikke aggressive replace). (3) Enter på `[] `/`[ ] `/`[x] `/`• `-linje → auto-continue prefiks; tom prefiks-linje → bryt ut (markdown-konvensjon). (4) Behold autosave/outbox uberørt — alt går via `setBody(newBody)`. Smoke #27.
+>
+> **Ikke-mål:** rich-text WYSIWYG (Mayos hele pitch var IKKE Notion); preview-render; numerert liste. v1 holder seg til de to formatene Mayo nevnte.
+
+## 🎯 Forrige (2026-06-27 10:45) — pt-daily Gemini → Claude Haiku (`77dba3f`)
 
 **Trigger:** HANDOVER-PT-DAILY-HAIKU.md (planlegger `76f7f14`).
 
