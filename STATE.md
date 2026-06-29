@@ -4,9 +4,102 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-27 · **Av:** planlegger (claude.ai) · **Versjon:** v0.45 pt-daily → Claude Haiku (handover, 1-linje LiteLLM-alias) · KRITISK journal-UX/autolagring · fail-closed PT levert · Strava-diagnose avkreftet
+**Sist oppdatert:** 2026-06-27 · **Av:** planlegger (claude.ai) · **Versjon:** v0.48 Kladd-editor toolbar (handover) — slank `☐ Oppgave` + `• Punkt` + `-` → `[]` autocomplete + Enter-auto-continue
 
-## 🎯 Nyeste (2026-06-27, planlegger) — Bytt `pt-daily` Gemini → Claude Haiku (`HANDOVER-PT-DAILY-HAIKU.md`)
+## 🎯 Nyeste (2026-06-27, planlegger) — Kladd-editor: slank toolbar (`mayo-os/HANDOVER-KLADD-EDITOR-TOOLBAR.md`)
+
+> **Mayo:** «Jeg bruker ikke `[]` — vanskelig å finne på tastatur desktop+mobil. Vil at `-` skal bli `[]`, men enda bedre: en editor hvor jeg kan velge format som punktliste og `[]` selv.»
+>
+> **Sjekkpunkt før spec:** møte-«Notater»-fanen er også ren `<textarea>` — det Mayo refererer til er bullets-strukturen i møte-sammendraget (ObsDetail.jsx:1292–1299, «+ bullet»). Vi tar interaksjonsmønsteret (knapp som setter prefiks), ikke struktur (Kladd skal være fritekst, ikke Notion).
+>
+> **🟢 Frikort:** `note_module._RE_EMPTY` regex (line 75) **aksepterer allerede `[-*•]\s*`-prefiks** før `[]` — så `- [] task`, `• [] task` og `[] task` høstes ALLE likt. **Ingen BE-endring.** Ren FE-fiks i `kladd.jsx`.
+>
+> **Spec (4 deler):** (1) Slank toolbar over textarea med to knapper — «☐ Oppgave» (setter `[] ` på linjestart) + «• Punkt» (`• `), toggle av/på, caret-bevarende. (2) `- ` på linjestart → autocomplete til `[] ` (gjenkjenner KUN umiddelbart etter mellomrom-trykket, ikke aggressive replace). (3) Enter på `[] `/`[ ] `/`[x] `/`• `-linje → auto-continue prefiks; tom prefiks-linje → bryt ut (markdown-konvensjon). (4) Behold autosave/outbox uberørt — alt går via `setBody(newBody)`. Smoke #27.
+>
+> **Ikke-mål:** rich-text WYSIWYG (Mayos hele pitch var IKKE Notion); preview-render; numerert liste. v1 holder seg til de to formatene Mayo nevnte.
+
+## 🎯 Forrige (2026-06-27 10:45) — pt-daily Gemini → Claude Haiku (`77dba3f`)
+
+**Trigger:** HANDOVER-PT-DAILY-HAIKU.md (planlegger `76f7f14`).
+
+### Endring (1-linje config)
+`infra/litellm/config.yaml` linje 74-77:
+- `pt-daily.model`: `gemini/gemini-2.5-flash` → `claude-haiku-4-5-20251001`
+- `pt-daily.api_key`: `GEMINI_API_KEY` → `ANTHROPIC_API_KEY`
+
+Ingen kodeendring i `pt_llm.py`. PT-koden kaller fortsatt `pt-daily` —
+LiteLLM ruter nå til Haiku. Gemini-aliaset (linje 67) beholdes for andre
+tjenester. Chain forblir `["pt-daily", "pt-weekly", "claude-haiku"]`.
+
+### Verifisert post `docker restart mayo-litellm`
+- `curl pt-daily` smoke: `finish=stop`, `reasoning_tokens=0`, `text_tokens=14`.
+  Ingen Gemini-thinking-mode-tap.
+- `coach_comment()` med ekte PT-payload: `modell="pt-daily"` lyktes,
+  **532-char rik coaching-respons**: «✅ Push A i dag — Bench Press
+  mål 5×5 @ 100kg…». Sammenlignet med Gemini sin trunkerte
+  «Fantastisk restitusjon i» (24 char) eller stille fallback til Sonnet.
+- Loggen vil ved neste cron (06:00 i morgen) IKKE lenger vise
+  `PT LLM pt-daily feilet → fallback` — pt-daily lykkes første gang.
+
+### Kostnad
+~$0.002/dag (~$0.06/mnd) — non-issue. Tidligere fallback til pt-weekly
+(Sonnet, ~$0.003/kall) er erstattet med direkte Haiku → samme størrelse,
+ett ekstra sekund spart per rapport.
+
+## 🎯 Forrige (2026-06-27 10:25) — 🔴 KRITISK: Journal-datatap-fiks LIVE
+
+**Trigger:** Mayo: «mistet et langt journal-innlegg ved swipe-bort … alt
+input på mayooran.com må autolagres … det er kritisk.» HANDOVER-JOURNAL-
+UX-AUTOSAVE.md prioritet #1. Push direkte til `feat/whoop-redesign`
+per Mayos eksplisitt ønske om at fiks går live straks (datatap).
+
+### Levert i 3 faser
+
+**Phase 1 — Min. blødnings-stopp** (FE `e216050`):
+DateEntrySheet (kalender-sti, der Mayo mistet innlegget):
+- Synkron `localStorage.setItem(draftKey, value)` på HVER `setDraft` via
+  ny `setDraftAndPersist`-helper. Nøkkel: `mayo.journal.draft.new:<dato>`.
+- `useState`-initializer leser localStorage ved mount → restaurerer kladd.
+- `useEffect` registrerer `pagehide` + `visibilitychange (hidden)` +
+  `beforeunload` flush-lyttere. `draftRef.current` brukes så lyttere leser
+  ferskeste verdi (closer-over-state ville sett stale data).
+- Tøm kladd KUN etter server-2xx. Feil ved POST → kladd beholdes.
+- «● gjenopprettet ulagret kladd»-indikator vises diskré.
+
+**Phase 2 — DateEntrySheet UX** (FE `9f9305d`):
+- overlay `zIndex` 1000 → **9999** (over BottomNav `50`)
+- inner padding-bottom: `calc(env(safe-area-inset-bottom, 0px) + 32px)` —
+  Save-knappen aldri klemt mot iOS safe-area, Safari-chrome, keyboard
+- textarea `fontSize` 14 → **16** (iOS Safari no-zoom på fokus)
+
+**Phase 3 — FullscreenEditor + EntryEditor** (FE `9f9305d`):
+Identisk kladd-mønster (`draftKey`, mount-restore, synkron skriv,
+pagehide-flush, unmount-flush) speilet til de to andre editorene.
+- FullscreenEditor textarea 14 → 16, mood-`<select>` 13.5 → 16,
+  tag-input 10.5 → 16 (bredde 80 → 110 så placeholder ikke trunkeres).
+  `closeAndSave` tømmer kladd etter server-2xx.
+- EntryEditor: kladd-mønster + fieldStyle `fontSize` 13 → 16
+  (gjelder dato/tid/tag-inputs i detalj-panelet).
+- Begge viser «● gjenopprettet ulagret kladd»-indikator i header.
+
+### Smoke #26 — datatap-vakt (BE `bbd20cb`)
+- Skriv unik tag-tekst til localStorage med `mayo.journal.draft.new:2024-01-15`
+- Reload siden → assert kladd fortsatt der (livbøye intakt)
+- Assert textarea-er i DOM har `fontSize ≥ 16` (skippes hvis tom journal)
+- Grønn isolert (4.8s). Full suite: **20/22 pass**, de 2 røde
+  (#02 FET, #15 desktop modal) er pre-existing.
+
+### 🔴 5 sjekkpunkter for «overlever bortgang»
+1. Mount → localStorage restoreres → tekst tilbake i feltet
+2. Hver onChange → localStorage synkron skriv (livbøyen)
+3. pagehide-event → synkron flush
+4. visibilitychange→hidden → synkron flush
+5. beforeunload → synkron flush
+Tøm KUN etter server-2xx. Feil holder kladd. Ingen falsk «lagret».
+
+Ingen nye deps. tokens.ts urørt.
+
+## 🎯 Forrige (2026-06-27, planlegger) — Bytt `pt-daily` Gemini → Claude Haiku (`HANDOVER-PT-DAILY-HAIKU.md`)
 
 > **Trigger:** Mayo: «Bytter pt-daily til Claude Haiku.» Rotårsak (`ecf00da`): Gemini quota 20 RPD → daglig fallback.
 >
