@@ -4,9 +4,29 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-27 · **Av:** planlegger (claude.ai) · **Versjon:** v0.48 Kladd-editor toolbar (handover) — slank `☐ Oppgave` + `• Punkt` + `-` → `[]` autocomplete + Enter-auto-continue
+**Sist oppdatert:** 2026-06-27 · **Av:** planlegger (claude.ai) · **Versjon:** v0.49 Kladd-editor toolbar LEVERT av planlegger (FE `12c168f`, Mayo bedt eksplisitt) — `- ` autocomplete droppet
 
-## 🎯 Nyeste (2026-06-27, planlegger) — Kladd-editor: slank toolbar (`mayo-os/HANDOVER-KLADD-EDITOR-TOOLBAR.md`)
+## 🎯 Nyeste (2026-06-27, planlegger) — Kladd-editor toolbar LEVERT (FE `12c168f`, pushet rett på `feat/whoop-redesign`)
+
+> **Mayo:** Elmars var uten SSH (sannsynligvis fail2ban/lockdown), så han ba meg implementere selv. Lav-risiko UX-fiks, ingen BE. Pushet direkte → auto-deploy live.
+>
+> **Spec-justering midt i implementasjon (viktig):** Mayos oppfølging viste at `- ` i hans faktiske bruk er **plain bullet under headings**, IKKE task-trigger. Eksempel han sendte:
+> ```
+> Enter forsikring
+>     - ring 91507070 og vise til deres referanse N1396885-ZH51578.
+> ```
+> Han vil **velge fra picker** hvilke bullets som blir tasks, ikke ha alle `- ` auto-konvertert. **Autocomplete-delen av handoveren ble derfor DROPPET.** Toolbar + Enter-auto-continue beholdt.
+>
+> **Levert (`12c168f`, `src/mobile/livsplan_v12/kladd.jsx`):**
+> - Slank toolbar over textarea: «☐ Oppgave» og «• Punkt». `onMouseDown preventDefault` holder textarea-fokus så virtuelt iOS-tastatur ikke kollapser.
+> - `togglePrefix(targetPrefix)` opererer på markørens linje: samme prefiks → toggle av; annet prefiks → erstatt; intet prefiks → sett inn foran første ikke-whitespace-tegn (bevarer leading-indent). Caret-posisjon bevares via `pendingCursorRef` + `useEffect`.
+> - Enter på prefiks-linje fortsetter: alle checkbox-former (`[]`/`[ ]`/`[x]`) → fresh `[] ` (så hver ny linje også blir task); bullet-former (`• `/`- `/`* `) → behold samme prefiks. Tom prefiks-linje → fjern prefiksen (klassisk markdown-break-out).
+> - Autosave/outbox uberørt — `writeBody` helper setter `dirty` + `writeOutbox` identisk med original `onChange`.
+> - Backend regex `note_module._RE_EMPTY` (linje 75) aksepterer allerede `[-*•]\s*` foran `[]` → ingen BE-endring.
+>
+> **Workflow:** Mayo skriver fritt (headings + `- ` bullets); når han vil at en linje skal bli task, setter han markøren der + tapper «☐ Oppgave» → linja blir `[] …` → backend høster til privat inbox.
+>
+> **Smoke #27** (spec'et i handover) — IKKE skrevet av meg; Elmars legger til når SSH er tilbake.
 
 > **Mayo:** «Jeg bruker ikke `[]` — vanskelig å finne på tastatur desktop+mobil. Vil at `-` skal bli `[]`, men enda bedre: en editor hvor jeg kan velge format som punktliste og `[]` selv.»
 >
