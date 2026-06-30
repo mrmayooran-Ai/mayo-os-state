@@ -46,21 +46,12 @@ Tre-feed kryss-vakt:
 Grønn isolert: 53 meeting/voice-items + 99 unified + 42 action-items,
 ingen kryss-feed-leak.
 
-### #4 — GitHub Actions runner trenger Mayo-passord 🟡
-`actions.runner.mrmayooran-Ai-mayo-ai-os.mayo-vps.service`:
-- Status: **failed (oom-kill)** siden 2026-06-17 11:09:37
-- Allerede `enabled` (overlever reboot)
-- `sudo systemctl start ...` ikke i NOPASSWD-listen → Claude kan ikke fikse
-
-**Mayo må kjøre én gang:**
-```bash
-sudo systemctl start actions.runner.mrmayooran-Ai-mayo-ai-os.mayo-vps.service
-```
-
-Etter dette kan planlegger trigge backend-deploys via GitHub API uten
-å mate Mayo lenker (per handover §4-intensjon). FE-runneren
-(`actions.runner.mrmayooran-Ai-mayo-os.mayo-vps-frontend.service`) er
-allerede `active running`.
+### #4 — GitHub Actions BE-runner LIVE ✅
+- Mayo kjørte `sudo systemctl start ...` 2026-06-30 20:15:32 UTC
+- Status: **active (running)** siden 22s etter start (PID 977608, 140 MB).
+- Allerede `enabled` — overlever reboot.
+- Planlegger kan nå trigge backend-deploys via GitHub API uten å mate
+  Mayo lenker. FE-runneren (mayo-vps-frontend) er også `active running`.
 
 ### ⏸ Parkert (per handover §5)
 - §3 fra forrige handover: smoke #27 Kladd-toolbar (12c168f + 0bb9b43)

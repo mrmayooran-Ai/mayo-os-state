@@ -1,197 +1,113 @@
-# HANDOVER_RESULT — scan_ingest Fase 0 (recon) (2026-06-29)
+# HANDOVER_RESULT — Teams-møte 14:00 Oslo mangler i Mayo OS (2026-06-30)
 
 **Til:** planlegger-sesjon (claude.ai)
 **Fra:** Elmars (VPS-Claude)
-**Trigger:** `HANDOVER-SCAN-INGEST-V2.md` (`c3b6696`) — Fase 0+1 forhåndsgodkjent.
+**Trigger:** Mayo: «Teams-møte ~14:00 Oslo (12:00 UTC) — systemet transkriberte
+men intet møte synlig, ingen oppsummering, ingenting.»
 
-## Sammendrag
+## Hovedfunn — opptaket nådde ALDRI backend
 
-Fase 0 ferdig. Ett **signifikant skjema-mismatch** mellom handover og virkelighet:
-`strength_session.sets` er **jsonb-felt på session-tabellen**, ikke separat
-`strength_sets`-tabell som handoveren antar. Påvirker hele Fase 2-design (BE må
-PATCHe jsonb, ikke INSERT i raddtabell). Alt annet i Fase 0 forløp uten overraskelser.
+**Klient-side feil. VPS-en så aldri lyd.**
 
-🛑 STOP før Fase 1 oppnådd. Starter Fase 1 i samme commit-kø hvis du sier OK.
+### 1. DB-sjekk: 0 rader
 
----
-
-## 1. LiteLLM vision-tilgang ✅
-
-**Tilgjengelige modeller i gateway** (live `GET /v1/models`):
-`aurora · aurora-8b · lokal · embed · privat · claude · claude-haiku · gemini · pt-daily · pt-weekly`
-
-**Vision-test mot `claude-haiku`-aliaset** (Claude Haiku 4.5,
-`claude-haiku-4-5-20251001`): grønn. Sendte 8×8 PNG via base64 i
-`image_url`-content; modellen svarte med beskrivelse av bildet. Status:
-`finish_reason="length"` (max_tokens=50 var lavt), tekst: «Jeg ser et lite grått
-ikon eller symbol …».
-
-**Anbefaling for `scan-ocr`-alias:**
-- Handover §4 spec'er `claude-3-5-sonnet-20241022`. Det er fortsatt en gyldig
-  vision-modell og finnes i Anthropic-API.
-- Men **claude-haiku 4.5** (allerede i config, nyere) gir ~6× lavere kostnad
-  (~$1/M input + $5/M output vs ~$3/M + $15/M) med god håndskrift-kvalitet.
-- Forslag: start med `claude-haiku-4-5-20251001` som `scan-ocr` → bytt til
-  Sonnet hvis Mayos kvalitetstest viser at Haiku mister detaljer.
-
-**Hva må gjøres for Fase 1:** legg til `scan-ocr`-alias i
-`infra/litellm/config.yaml`:
-```yaml
-  - model_name: "scan-ocr"
-    litellm_params:
-      model: "claude-haiku-4-5-20251001"   # start her; bytt om kvalitet svikter
-      api_key: "os.environ/ANTHROPIC_API_KEY"
+```sql
+SELECT … FROM meeting
+WHERE user_id='c7329969-d1bc-4b05-b093-8f13ef1556a8'
+  AND uploaded_at >= '2026-06-30 09:00';
 ```
-Restart `mayo-litellm` etter. `pt_llm.py`-mønsteret (alias-baseret routing)
-gjenbrukes; ingen ny dep.
+→ **0 rows**. Ingen meeting-rad ble noensinne opprettet i dag.
 
----
+### 2. db-api-journal 11:30–15:00 UTC: stille på meeting
 
-## 2. strength_session-skjema 🚨 (handover-antakelse FEIL)
-
-Handover §2.1 sier «INSERT-er rader i `strength_sets` koblet til den session».
-**`strength_sets`-tabellen finnes ikke.**
-
-Faktisk skjema:
+```bash
+sudo journalctl -u db-api --since "2026-06-30 11:30" --until "2026-06-30 15:00" \
+  | grep -iE "meeting|pipeline|whisper|claude_extract|finalize|chunk"
 ```
-Table "public.strength_session"
-   Column   |           Type           | Nullable |    Default
-------------+--------------------------+----------+---------------
- id         | bigint                   | not null | nextval(...)
- user_id    | text                     | not null |
- ts         | timestamp with time zone | not null |
- name       | text                     | not null | ''
- note       | text                     | not null | ''
- sets       | jsonb                    | not null | '[]'
- created_at | timestamp with time zone | not null | now()
+→ **0 treff** for pipeline/whisper/finalize/chunk i tidsvinduet.
+
+### 3. Audit-log: Mayo VAR aktiv, men aldri på meeting-upload-stiene
+
+Mellom 11:30 og 12:30 UTC har Mayo brukt appen aktivt:
+- `POST /items`, `DELETE /items/…`, `PATCH /items/…` (oppgavemanagement)
+- `POST /notes`, `PATCH /notes/…` (kladd)
+- `POST /meeting/692efc76-…/ask` (spurt Jarvis om IVF-møte fra 23.06)
+- `POST /pyauth/passkey/login` (re-autentisering)
+
+**Det som IKKE finnes i audit-log siste 4 timer**:
+- `POST /meeting/create`
+- `POST /meeting/{id}/audio`
+- `POST /meeting/{id}/audio-chunk`
+- `POST /meeting/{id}/finalize`
+- `POST /meeting/upload`
+
+Han har ALDRI POSTet noe nytt møte-payload i dag. SPA-en, iOS Shortcut,
+Mac-skriptet — uansett hvilken vei han brukte for Teams-opptaket: ingenting
+nådde frem.
+
+### 4. Pending audio på disk: ingen funnet
+
 ```
-
-- `user_id` er **TEXT** (de andre tabellene bruker UUID — `item.user_id`,
-  `note.user_id`, etc). Sannsynligvis legacy. Må håndteres egen i Fase 2.
-- `sets` er **jsonb-array**, ikke fremmednøkler til en raddtabell.
-- **Ingen** `strength_sets`-tabell, ingen separate set-rader, ingen
-  fremmednøkler å validere mot.
-
-**Implikasjon for Fase 2:**
-- BE-endepunktet (`POST /scan/ingest/strength`) må **PATCHe**
-  `strength_session.sets`-jsonb (append eller replace), ikke INSERT i en tabell.
-- Reversibilitet: jsonb-PATCH er litt mindre granulært, men en undo-strategi
-  kan beholde gammel `sets`-versjon (last-write-wins eller versjonsstemplet).
-- Spør Mayo: «Skal skannede sett **erstatte** eller **legges til** eksisterende
-  `sets`-array på den valgte sessionen?» Default-antakelse: append (han logger
-  flere sett underveis).
-
-`session_insight` (annen tabell) refererer til `strength_session(id)` med
-fremmednøkkel — den må ikke brytes ved PATCH.
-
----
-
-## 3. Epley 1RM-util — kun i FE
-
-**Backend:** ingen Epley-util. Hverken i `db_api/`, `modules/health/`, eller
-PT-laget. Strength-modulen er i hovedsak FE.
-
-**Frontend:**
-- `src/lib/strength.js:13` — `export const epley = (weight, reps) => weight * (1 + reps / 30);`
-- `src/mobile/pages/PageStyrke.jsx:152` — `const _epley = (weight, reps) => (weight || 0) * (1 + (reps || 0) / 30);`
-
-**Implikasjon for Fase 2:** OCR → parsed sets (kg + reps) lagres som de er;
-Epley-beregning skjer fortsatt FE-side ved fremstilling. Ingen BE-Epley nødvendig.
-
-Note: `src/lib/strength.js:620` har en kommentar «dropp e1RM, vis faktisk
-maksløft». Dette indikerer at Mayo har bevisst nedprioritert Epley i UI — vi
-trenger ikke aktivere flere e1RM-paths i skann-flyten.
-
----
-
-## 4. reminders — modul finnes ✅
-
-- **Tabell** `reminder`: 18 kolonner inkl. `title`, `description`, `due_at`,
-  `tags[]`, `priority`, `list_name`, `completed`. iCloud-synket
-  (`icloud_uid`, `icloud_etag`, `last_synced_at`).
-- **user_id**: uuid (konsistent med item/note).
-- **Endepunkter** i `db_api/reminders_module.py`:
-  - `GET /reminders`
-  - `GET /reminders/lists`
-  - `POST /reminders` (linje 134 — sannsynligvis det Fase 4 trenger)
-  - `POST /reminders/sync`
-  - `POST /reminders/bulk-sync`
-
-**Implikasjon for Fase 4:** `POST /reminders` finnes; kan kalles direkte fra
-scan_ingest med parsed linje + dato + område. Påminnelser-modulen kjører i
-produksjon, ingen ny scope-utvidelse trengs.
-
-**FE-flate**: Reminders er allerede i Apple Reminders + sync til `item`-tabell
-(via `item.source='reminder'`). Det finnes ikke en dedikert «PageReminders» —
-de vises i `/tasks`/Livsplan via unified-feeden. Fase 4 må enten:
-- (a) bygge ny `PageReminders` for skann-knappen, eller
-- (b) legge skann-knappen i kalender-/dato-arket der reminder opprettes idag.
-Anbefaling: **spør Mayo i Fase 4-start** hvilken han foretrekker.
-
----
-
-## 5. Vault-skrivesti — gjenbruk eksisterende
-
-`note_module.py::_write_to_vault` (linje ~81):
-```python
-NOTES_DIR.mkdir(parents=True, exist_ok=True)
-path = NOTES_DIR / f"{note_date}.md"
-# header = "# {title}\n\n" hvis tittel finnes
-path.write_text(header + body_md, encoding="utf-8")
+ls /home/mayo/mayo-ai-os/data/audio  → tomt
+find /home -name "chunks" -o -name "audio*" → ingen treff
 ```
+Backend har ingen halvferdig lyd liggende. Ingen henging på prosessering.
 
-`NOTES_DIR` = `MayoVault/notater/`. Idempotent overskriving. Filer ligger med
-`<note_date>.md`-navn (siste fil sett: `2026-06-26.md`).
+## Konklusjon
 
-**Implikasjon for Fase 3 (Kladd-skann):** når Mayo bekrefter preview → kall
-eksisterende `POST /notes` med `body_md` = parsed OCR-tekst. `note_module`
-tar seg av vault-skriving automatisk via `_write_to_vault`. **Ingen ny vault-
-skrivesti trengs.**
+Pipeline-statusen er **#1 i handover-katalogen**: «0 rader: opptaket nådde
+aldri backend». Whisper transkriberte Mayos lyd et sted **lokalt på klient**,
+men output ble aldri lastet opp til VPS-en.
 
-**`MayoVault/skann/`** for ad-hoc Shortcut-stien (Fase 5): kan opprettes ved
-behov, men anbefal Mayo skipper det og lar alt ligge i `notater/` med en
-`#skann`-tag i front-matter (enklere søk).
+Sannsynlige klient-side stier som kan ha feilet:
 
----
+| Sti | Hvordan sjekke |
+|---|---|
+| **Mac-app/AppleScript** som tar opp Teams-lyd lokalt og POSTer til `db.mayooran.com/meeting/upload` | Sjekk Mac-konsoll for nettverksfeil/krasj i den prosessen. Sjekk om Whisper-output ligger igjen lokalt (`~/Documents/`, `/tmp/`, app-data-mappe) |
+| **iOS Shortcut «Møte→Mayo OS»** | Sjekk Shortcuts-app, kjør den manuelt med samme lyd-input om mulig — den vil enten lykkes eller vise feilmelding |
+| **SPA-recorder i nettleser** på mayooran.com (hvis han brukte iPad/MacBook) | Mayo skulle ha sett et meeting-detail-vue etter opptak. Hvis han bare så «opptak ferdig» uten redirect — feilen var i upload-fetch |
 
-## 6. PageStyrke.jsx — fil-struktur ✅
+**INGEN av disse kan diagnostiseres fra VPS-en alene** — de er klient-side
+prosesser.
 
-- Fil: `src/mobile/pages/PageStyrke.jsx`
-- Routes: `src/routes/strength/Strength.jsx` (desktop) + `src/lib/strength.js` (util)
-- PageStyrke er ~2700 linjer (stor). Topp-handlingsrad må **identifiseres
-  presist** i Fase 2 — den er nede i komponent-treet, ikke åpenbart eksponert i
-  topp-grepet jeg gjorde.
-- Anbefal: når Fase 2 starter, naviger PageStyrke i nettleser først,
-  identifiser visuelt hvor «Ny økt»/«Historikk»-knappene sitter, så match til
-  kode med en mer presis grep eller `git blame`.
+## Anbefalte neste steg for Mayo
 
----
+1. **Finn lyd-filen.** Hvis Whisper transkriberte den, ligger originalen
+   sannsynligvis ennå et sted lokalt:
+   - Mac: `~/Library/Containers/com.microsoft.teams/`, `~/Movies/`,
+     `~/Documents/Teams Recordings/`, `/tmp/`
+   - iPhone: Voice Memos-app, eller hvis Shortcut → kanskje i Filer-appen
+   - Browser-recorder: ingen lokal kopi som regel (gone hvis siden ble lukket)
 
-## Anbefalinger for Fase 1
+2. **Re-upload via SPA**: hvis lyden er bevart, åpne mayooran.com →
+   meeting-fanen → «Last opp lyd» (eller hva-knappen-heter). Pipeline vil
+   da kjøre normalt — analyseringen er identisk uavhengig av om opptaket
+   skjedde i sanntid eller post-hoc.
 
-1. **Module-layout:** lag `modules/scan_ingest/` med:
-   - `__init__.py`
-   - `ocr_engine.py` — `async def transcribe(image_bytes: bytes, *, hint: str = "") -> str`
-   - `cli.py` — `python -m scan_ingest.ocr <bilde-sti>`
-2. **Engine-impl:** kall LiteLLM-gateway `scan-ocr`-alias med
-   `image_url`/`base64`-content. Hint sendes som system-prompt-suffix.
-3. **CLI:** ta filsti(er) som arg, print rå transkripsjon for hver. Mayo
-   trenger denne for å sende 3-5 ark og dømme kvalitet.
-4. **Ingen DB-skriving i Fase 1.** Bare OCR-motor + CLI.
+3. **Hvis lyden er borte**: send Telegram-bot en kort tekst-melding med
+   stikkord (eller skriv et notat i Kladd). Detalj-rik notat fra hukommelsen
+   er bedre enn null spor.
 
-**STOP-gate (handover §7):** etter Fase 1 må Mayo kjøre CLI mot test-ark og
-godkjenne tyde-kvalitet før Fase 2.
+4. **Verifiser klient-pipelinen før neste møte**: gjør en 30-sekunders
+   test-opptak med Mac-appen/iOS-Shortcuten/SPA-en *før* neste Teams-call.
+   Hvis test-opptaket ikke dukker opp i appen innen ~3 min, vet vi
+   klient-stien er trasig før Mayo investerer en hel møtetime i den.
 
-## Konkret Fase 1-plan
+## Hva som IKKE er problemet (utelukket)
 
-a. Legg til `scan-ocr`-alias i `infra/litellm/config.yaml` (Claude Haiku 4.5).
-b. `docker restart mayo-litellm` + curl-smoke-test mot vision-aliaset.
-c. Lag `modules/scan_ingest/` med `ocr_engine.py` + `cli.py`.
-d. Skriv en kort `README.md` med CLI-bruksanvisning.
-e. Commit + push + STATE.
+- ✅ Backend kjører (db-api PID 974728, helsesjekk grønn)
+- ✅ Meeting-pipeline funket før 30.06 (siste meeting `692efc76` IVF 23.06,
+  full transkripsjon + AI-analyse + tasks)
+- ✅ Whisper-modellen er på VPS (`/home/mayo/whisper-models/nb-whisper-large-ct2`)
+  men kalles ikke uten først å motta lyd
+- ✅ Cloudflare-tunnel for `db.mayooran.com` virker (Mayo har kjørt 20+
+  andre API-kall i tidsvinduet)
+- ✅ Mayo's session-cookie er gyldig (alle hans request returnerer 200)
 
-Avventer Mayos signal før commit av §1 (Fase 1) hvis preferansen er å se
-recon-funnene først; ellers kan jeg fortsette direkte siden Mayo allerede
-forhåndsgodkjente Fase 1.
+## Re-trigger ikke aktuelt
 
-— Elmars 2026-06-29
+Per handover §4: «Hvis status='failed' og det finnes lyd-fil intakt: restart
+pipelinen.» Det er ingen failed-rad og ingen lyd-fil — det er **ingenting å
+restarte**. Pipeline-restart er meningsløst uten audio som input.
+
+— Elmars 2026-06-30 20:20 UTC
