@@ -4,9 +4,98 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-29 14:35 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.53 scan_ingest Fase 0+1 LEVERT — CLI klar for Mayos kvalitetstest
+**Sist oppdatert:** 2026-06-30 20:15 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.56 BE-side suverenitets-rail + smoke #28 + scan-test-OCR deployet. Runner trenger Mayo-passord.
 
-## 🎯 Nyeste (2026-06-29 14:35) — scan_ingest Fase 0+1 LEVERT (avventer Mayos test-ark)
+## 🎯 Nyeste (2026-06-30 20:15) — Akutt-handover §1-4
+
+**Trigger:** Mayos akutt-pakke (4 punkter, alle parallelle).
+
+### #1 — `/scan/test-ocr` deployet ✅
+- Pull-fast-forward + `./deploy.sh`. HEAD = `03c9167`.
+- Endepunkt verifisert: `POST /scan/test-ocr` returnerer 401 (auth-gated)
+  uten cookie, IKKE 404. Mayo kan teste fra iPhone på
+  https://mayooran.com/scan-test (har mayo_session-cookie).
+
+### #2 — BE-side suverenitets-rail på meeting action-items (`3ea8a88`)
+**Diagnose-overraskelse:** 11 source='meeting'-items hadde track != 'jobb',
+men ALLE 11 var korrekt private IVF (track='privat', area='ivf').
+**0 active leak** fra obs-bygg-møter. Handover-SQL «UPDATE … track='jobb'»
+ville flyttet privat IVF-data til jobb — kritisk å diagnostisere først.
+
+**Backfill IKKE kjørt** (eksisterende data rent).
+
+**Fiks fremover** i `db_api/meeting_module.py::_insert_action_items` (linje
+485+): meeting.is_private er nå **sannhetskilden** for track, ikke Claudes
+area-tildeling.
+- Tidligere: `track = AREA_TRACK.get(ai_area, default_track)` →
+  Claude's area-suggestion overstyrte → obs-bygg-task med area='mayo_os'
+  fikk track='privat' → lekkasje til Livsplan-inbox (Mayos klage).
+- Nå: `track = default_track` ALLTID (basert på meeting.is_private).
+  Mismatch logges INFO. Hvis obs-bygg-møte foreslår privat-area:
+  override `ai_area = 'obs_bygg'` så hverken track eller area lekker.
+
+### #3 — Smoke #28 sovereignty-consistency (`5b3d559`) ✅
+Tre-feed kryss-vakt:
+- (A) `/items` rådata: source='meeting'/'voice-journal' MÅ ha track som
+  matcher meeting.is_private (krysssjekker mot
+  `/meeting?include_private=true`)
+- (B) `/tasks/unified`: is_private=true MÅ aldri ha url=/obs-bygg/*;
+  divergens mellom rådata.track og unified.is_private flagges
+- (C) `/action-items`-aggregat: ingen privat-merket item lekker hit
+
+Grønn isolert: 53 meeting/voice-items + 99 unified + 42 action-items,
+ingen kryss-feed-leak.
+
+### #4 — GitHub Actions runner trenger Mayo-passord 🟡
+`actions.runner.mrmayooran-Ai-mayo-ai-os.mayo-vps.service`:
+- Status: **failed (oom-kill)** siden 2026-06-17 11:09:37
+- Allerede `enabled` (overlever reboot)
+- `sudo systemctl start ...` ikke i NOPASSWD-listen → Claude kan ikke fikse
+
+**Mayo må kjøre én gang:**
+```bash
+sudo systemctl start actions.runner.mrmayooran-Ai-mayo-ai-os.mayo-vps.service
+```
+
+Etter dette kan planlegger trigge backend-deploys via GitHub API uten
+å mate Mayo lenker (per handover §4-intensjon). FE-runneren
+(`actions.runner.mrmayooran-Ai-mayo-os.mayo-vps-frontend.service`) er
+allerede `active running`.
+
+### ⏸ Parkert (per handover §5)
+- §3 fra forrige handover: smoke #27 Kladd-toolbar (12c168f + 0bb9b43)
+- §4a fra forrige: Strava watcher rate-limit (*/5 → */15 + 429-backoff)
+- scan_ingest Fase 2 — venter Mayos «Kjør» etter telefon-OCR-test
+
+## 🚨 Forrige (2026-06-30, planlegger) — Meeting-items lekket inn i Livsplan-inbox (FE `b38ae63`)
+
+> **Mayo (tap-skrekk #3 på samme dag):** «Faen ass… har masse obs bygg møte oppgaver i innbox. Hvorfor skjer dette? Kjønner du jeg mister tillit. Kan du rydde opp?»
+>
+> **Rotårsak:** `/items`-stien i `app.jsx::loadItems` (linje 427) filtrerte kun `track !== 'jobb' && area !== 'obs_bygg'`. Men meeting action items i DB-en har ofte `track=null` og `area=null` — Claude-ekstraksjonen i `meeting_module._create_tasks_from_action_items` setter `source='meeting'` og `origin_ref=meeting_id`, men fyller ikke alltid `track`/`area`. De slapp gjennom FE-filteret og dukket opp i Livsplan-inbox.
+>
+> Den parallelle `/tasks/unified`-stien hadde allerede `source !== 'meeting'`-vakta (linje 436), så den var trygg. Men `/items`-stien manglet samme vakta. Hull i en av to parallelle stier — klassisk «belt OR suspenders, not both».
+>
+> **Fiks (`b38ae63`, `src/mobile/livsplan_v12/app.jsx`):** utvidet alle tre filter-steder (useState init linje 387, mappedItems filter linje 427, mock-fallback linje 461) til å sjekke **alle fire** predikater: `track !== 'jobb' && area !== 'obs_bygg' && source !== 'meeting' && source !== 'voice-journal'`. Sovereignty-prinsipp: `source` er fasit for HVOR item-et hører hjemme; `track`/`area` er sekundære tagger som kan mangle.
+>
+> **🔴 Tillit:** Mayo hadde tap-skrekk #1 (journal swipe → datatap), tap-skrekk #2 (Kladd-tasks "borte" → bare droppet ut av denne uken-fana), nå tap-skrekk #3 (meeting-leak). Tre slag i samme uke på samme nerve. Hver fiks er reell, men hver runde river ned mer tillit enn forrige bygget opp. Må prioritere: ingen nye Livsplan-features før vi har en sovereignty-smoke-test som vakter ALLE parallelle stier samtidig (FE filter-konsistens-vakt — påstå at samme item-set som BE returnerer som «privat» faktisk er det som FE viser).
+>
+> Auto-deploy live om ~2 min. Mayo refresher Livsplan → meeting-items skal være borte.
+
+## 🎯 Forrige (2026-06-29, planlegger) — Throwaway `/scan-test`-side bygget direkte (Mayo ba)
+
+> **Trigger:** Mayo: «hvordan tester jeg, finner ikke bilde-opplastknapp» → CLI-en duger ikke som telefon-test (krever bilde allerede på VPS). Han ba meg bygge selv siden Elmars var nede. «Drop bilder i Elmars-chatten» avvist som «dårlig alternativ, vil teste skikkelig».
+>
+> **Levert:**
+> - **BE** (`163d9fd`, `db_api/scan_module.py`): `POST /api/db/scan/test-ocr` multipart (file + valgfri hint). Krever mayo_session-cookie. Returnerer `{raw_text, hint_used, duration_ms, bytes_in, mime}`. Ingen DB-skriving, bildet kun i RAM. Mountet via `try/except` i `server.py` (samme mønster som andre moduler).
+> - **FE** (`f5630fb`, `src/routes/ScanTest.jsx`): mountet på `/scan-test`. iOS-kamera direkte via `<input capture="environment">`, hint-dropdown (Trening/Fritekst/Huskelapp), POST → vis rå tekst i pre + Kopier/Ny-knapper. fontSize 16+ overalt, 44px+ tap-targets, mobile-first.
+>
+> **Sovereignty:** OCR-kallet går til Claude vision via LiteLLM `scan-ocr`-aliaset. Akseptabelt fordi Mayo eksplisitt initierer hvert kall — ingen automatisering, ingen batch. Andre kontekster (Kladd, påminnelser) får preview-ark-disiplinen når Fase 3+ integreres.
+>
+> **Throwaway-natur:** slettes (BE-endepunkt + FE-rute) når Fase 2-Styrke + Fase 3-Kladd + Fase 4-Påminnelser lander proper in-context entries.
+>
+> **🔴 BE-deploy gjenstår:** GitHub Action `deploy-backend.yml` workflow_dispatch — min API-token har ikke `actions:write` (403). Mayo må trigge manuelt fra Actions-fanen (Run workflow → branch `claude/confident-noether-lpacih`). FE er allerede live via push-trigger.
+
+## 🎯 Forrige (2026-06-29 14:35) — scan_ingest Fase 0+1 LEVERT (avventer Mayos test-ark)
 
 **Trigger:** HANDOVER-SCAN-INGEST-V2.md (planlegger `c3b6696`). Fase 0+1
 forhåndsgodkjent. Mayo: «jobb autonomt, ikke spør meg lenger, ja til alt».
