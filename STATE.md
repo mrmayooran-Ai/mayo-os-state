@@ -4,9 +4,86 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-29 · **Av:** planlegger (claude.ai) · **Versjon:** v0.52 Scan-ingest v2 (kontekst-aware) — bygger på Maris v1, reframet rundt Mayos workflow
+**Sist oppdatert:** 2026-06-29 · **Av:** planlegger (claude.ai) · **Versjon:** v0.54 scan-test telefon-flate LEVERT av planlegger (FE `f5630fb` + BE `163d9fd`)
 
-## 🎯 Nyeste (2026-06-29, planlegger) — Skann-til-struktur Pipeline v2 (`HANDOVER-SCAN-INGEST-V2.md`)
+## 🎯 Nyeste (2026-06-29, planlegger) — Throwaway `/scan-test`-side bygget direkte (Mayo ba)
+
+> **Trigger:** Mayo: «hvordan tester jeg, finner ikke bilde-opplastknapp» → CLI-en duger ikke som telefon-test (krever bilde allerede på VPS). Han ba meg bygge selv siden Elmars var nede. «Drop bilder i Elmars-chatten» avvist som «dårlig alternativ, vil teste skikkelig».
+>
+> **Levert:**
+> - **BE** (`163d9fd`, `db_api/scan_module.py`): `POST /api/db/scan/test-ocr` multipart (file + valgfri hint). Krever mayo_session-cookie. Returnerer `{raw_text, hint_used, duration_ms, bytes_in, mime}`. Ingen DB-skriving, bildet kun i RAM. Mountet via `try/except` i `server.py` (samme mønster som andre moduler).
+> - **FE** (`f5630fb`, `src/routes/ScanTest.jsx`): mountet på `/scan-test`. iOS-kamera direkte via `<input capture="environment">`, hint-dropdown (Trening/Fritekst/Huskelapp), POST → vis rå tekst i pre + Kopier/Ny-knapper. fontSize 16+ overalt, 44px+ tap-targets, mobile-first.
+>
+> **Sovereignty:** OCR-kallet går til Claude vision via LiteLLM `scan-ocr`-aliaset. Akseptabelt fordi Mayo eksplisitt initierer hvert kall — ingen automatisering, ingen batch. Andre kontekster (Kladd, påminnelser) får preview-ark-disiplinen når Fase 3+ integreres.
+>
+> **Throwaway-natur:** slettes (BE-endepunkt + FE-rute) når Fase 2-Styrke + Fase 3-Kladd + Fase 4-Påminnelser lander proper in-context entries.
+>
+> **🔴 BE-deploy gjenstår:** GitHub Action `deploy-backend.yml` workflow_dispatch — min API-token har ikke `actions:write` (403). Mayo må trigge manuelt fra Actions-fanen (Run workflow → branch `claude/confident-noether-lpacih`). FE er allerede live via push-trigger.
+
+## 🎯 Forrige (2026-06-29 14:35) — scan_ingest Fase 0+1 LEVERT (avventer Mayos test-ark)
+
+**Trigger:** HANDOVER-SCAN-INGEST-V2.md (planlegger `c3b6696`). Fase 0+1
+forhåndsgodkjent. Mayo: «jobb autonomt, ikke spør meg lenger, ja til alt».
+
+### Fase 0 — Recon (`7c7a44d`)
+
+Recon avdekket ÉN signifikant skjema-mismatch som påvirker Fase 2-design:
+
+**🚨 `strength_session.sets` er jsonb, ikke separat `strength_sets`-tabell.**
+Handover-§2.1 antar INSERT i raddtabell — det stemmer ikke. Fase 2-BE må
+PATCHe jsonb-feltet (append/replace). `user_id` på strength_session er
+også TEXT, ikke UUID (legacy — håndteres egen).
+
+Andre funn (alle uten overraskelser):
+- LiteLLM vision via `claude-haiku-4-5` grønn (live test mot 8×8 PNG).
+- Epley 1RM kun i FE (`src/lib/strength.js`, `PageStyrke.jsx:152`) —
+  ingen BE-Epley nødvendig.
+- `reminders`-modul kjører i prod (`POST /reminders` finnes); Fase 4
+  trenger ingen scope-utvidelse.
+- Vault gjenbrukes via `note_module._write_to_vault` (NOTES_DIR =
+  `MayoVault/notater/`).
+- PageStyrke.jsx ~2700 linjer; topp-handlingsrad må identifiseres
+  visuelt i Fase 2.
+
+Full diagnose i `HANDOVER_RESULT.md`.
+
+### Fase 1 — OCR-motor + CLI (`a18031e`)
+
+`infra/litellm/config.yaml` — ny `scan-ocr`-alias:
+- model: `claude-haiku-4-5-20251001` (~$3/mnd ved 5-10 skann/dag)
+- Sonnet ville vært ~$18/mnd; bytter hvis Mayos kvalitetstest svikter
+- Live: `GET /v1/models` viser scan-ocr post-restart
+
+`modules/scan_ingest/`:
+- `ocr_engine.py` (~140 linjer): `async transcribe(image_bytes, *, hint="")`
+  - LiteLLM-routing via `OCR_MODEL`-env (samme mønster som pt_llm)
+  - System-prompt: «ordrett transkripsjon, behold linjeskift,
+    `?` på uleselige tegn, IKKE tolk»
+  - temperature=0.0, max_tokens=2000 (en hel A4)
+  - `OcrError` ved alle feiltilstander — caller skal vise rå-bildet
+- `cli.py` (~110 linjer): `python -m scan_ingest.cli <bilde> [...]`
+  - Auto-hint på filnavn (styrke-*/kladd-*/paaminnelse-*)
+  - Stdout rå-tekst (pipe-vennlig), stderr status
+- `README.md` — bruksanvisning + STOP-gate
+
+Live-verifisert:
+- PIL-generert «Knebøy 100kg x 5 x 3 / Markløft 140kg x 3» → tall
+  100 % presist transkribert (æøå-feil var PIL-font, ikke OCR)
+- CLI mot test-paaminnelse.jpg: auto-hint detektert, 3 linjer korrekt
+- Engine ingen DB-skriving, ingen sideeffekter — pur funksjon
+
+### 🛑 STOP — venter Mayos 3-5 test-ark
+
+Per handover §7: Mayo må kjøre CLI mot ekte ark og dømme tyde-kvalitet
+før Fase 2 startes. Fase 2+ (DB-skriving) krever ny «Kjør».
+
+Bruksanvisning når test-ark kommer:
+```
+cd ~/mayo-ai-os
+/home/mayo/mayo-ai-os/orchestrator/.venv/bin/python -m scan_ingest.cli ark1.jpg ark2.jpg
+```
+
+## 🎯 Forrige (2026-06-29, planlegger) — Skann-til-struktur Pipeline v2 (`HANDOVER-SCAN-INGEST-V2.md`)
 
 > **Trigger:** Maris (annen planlegger-Claude) sendte v1-handover. Mayo ba om review + utvidelse basert på faktisk workflow. Han logger styrke som Strava-aktivitet (match-vindu unødvendig — picker er presisere), vil ha skann-handling i hver kontekst, og auto-convert `- ` → `[ ]` ved OCR-ingest (men ikke ved typing — bevarer 2026-06-27-disiplinen).
 >
