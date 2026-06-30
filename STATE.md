@@ -4,9 +4,23 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-29 · **Av:** planlegger (claude.ai) · **Versjon:** v0.54 scan-test telefon-flate LEVERT av planlegger (FE `f5630fb` + BE `163d9fd`)
+**Sist oppdatert:** 2026-06-30 · **Av:** planlegger (claude.ai) · **Versjon:** v0.55 Sovereignty-hull fikset: meeting/voice-journal items lekket inn i Livsplan-inbox
 
-## 🎯 Nyeste (2026-06-29, planlegger) — Throwaway `/scan-test`-side bygget direkte (Mayo ba)
+## 🚨 KRITISK FIKS (2026-06-30, planlegger) — Meeting-items lekket inn i Livsplan-inbox (FE `b38ae63`)
+
+> **Mayo (tap-skrekk #3 på samme dag):** «Faen ass… har masse obs bygg møte oppgaver i innbox. Hvorfor skjer dette? Kjønner du jeg mister tillit. Kan du rydde opp?»
+>
+> **Rotårsak:** `/items`-stien i `app.jsx::loadItems` (linje 427) filtrerte kun `track !== 'jobb' && area !== 'obs_bygg'`. Men meeting action items i DB-en har ofte `track=null` og `area=null` — Claude-ekstraksjonen i `meeting_module._create_tasks_from_action_items` setter `source='meeting'` og `origin_ref=meeting_id`, men fyller ikke alltid `track`/`area`. De slapp gjennom FE-filteret og dukket opp i Livsplan-inbox.
+>
+> Den parallelle `/tasks/unified`-stien hadde allerede `source !== 'meeting'`-vakta (linje 436), så den var trygg. Men `/items`-stien manglet samme vakta. Hull i en av to parallelle stier — klassisk «belt OR suspenders, not both».
+>
+> **Fiks (`b38ae63`, `src/mobile/livsplan_v12/app.jsx`):** utvidet alle tre filter-steder (useState init linje 387, mappedItems filter linje 427, mock-fallback linje 461) til å sjekke **alle fire** predikater: `track !== 'jobb' && area !== 'obs_bygg' && source !== 'meeting' && source !== 'voice-journal'`. Sovereignty-prinsipp: `source` er fasit for HVOR item-et hører hjemme; `track`/`area` er sekundære tagger som kan mangle.
+>
+> **🔴 Tillit:** Mayo hadde tap-skrekk #1 (journal swipe → datatap), tap-skrekk #2 (Kladd-tasks "borte" → bare droppet ut av denne uken-fana), nå tap-skrekk #3 (meeting-leak). Tre slag i samme uke på samme nerve. Hver fiks er reell, men hver runde river ned mer tillit enn forrige bygget opp. Må prioritere: ingen nye Livsplan-features før vi har en sovereignty-smoke-test som vakter ALLE parallelle stier samtidig (FE filter-konsistens-vakt — påstå at samme item-set som BE returnerer som «privat» faktisk er det som FE viser).
+>
+> Auto-deploy live om ~2 min. Mayo refresher Livsplan → meeting-items skal være borte.
+
+## 🎯 Forrige (2026-06-29, planlegger) — Throwaway `/scan-test`-side bygget direkte (Mayo ba)
 
 > **Trigger:** Mayo: «hvordan tester jeg, finner ikke bilde-opplastknapp» → CLI-en duger ikke som telefon-test (krever bilde allerede på VPS). Han ba meg bygge selv siden Elmars var nede. «Drop bilder i Elmars-chatten» avvist som «dårlig alternativ, vil teste skikkelig».
 >
