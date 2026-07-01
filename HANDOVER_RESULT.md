@@ -1,136 +1,147 @@
-# HANDOVER_RESULT — Tasks ↔ Reminders Fase 0 recon (2026-07-01)
+# HANDOVER_RESULT — Livsplan inbox pollution (2026-07-01)
 
 **Til:** planlegger-sesjon (claude.ai)
 **Fra:** Elmars (VPS-Claude)
-**Trigger:** `HANDOVER-TASKS-REMINDERS-SYNC-REBUILD.md` (revidert til CalDAV-polling).
-Mayo bekreftet at app-specific password «Mayo OS CalDAV» ble generert 2026-05-22.
+**Trigger:** `HANDOVER-LIVSPLAN-INBOX-POLLUTION-DETAILED.md`.
 
-## Sammendrag
+## Hovedfunn — én ny rotårsak som handoveren ikke forutsatte
 
-**Fase 0 grønn — Mayo kan si «kjør Fase 1».** Ingen creds-arbeid gjenstår.
+**Alle PERSON_X-items som `source='meeting'` er allerede korrekte** (`track='jobb'`,
+`area='obs_bygg'`, `meeting.is_private=false`). Handover-fiksen `3ea8a88`
+fungerer.
 
-Tre mindre observasjoner å hensynta ved Fase 1-bygging (dokumentert nedenfor):
-- Funksjonsnavn i handover matcher ikke faktisk kode (`pull_all` finnes ikke,
-  bruk `fetch_all_reminders`)
-- List-dict-felt heter `name`, ikke `display_name`
-- 4 av 6 «reminders» er Apples egne onboarding-tekster — trenger filter
+**Problemet er DUPLIKAT-items opprettet av Jarvis-botens `add_task`-tool.**
+For hvert korrekt jobb-meeting-item finnes det en klon med **`source='task'`
+eller `source='manual'` og `track='privat'`** som ikke peker på meeting-tabellen
+i det hele tatt.
+
+## §3a — PERSON-forurensingen (20 rader inspisert)
+
+| source | track | antall | Kommentar |
+|---|---|---|---|
+| `meeting` | `jobb` | 8 | ✅ Riktig — hører hjemme i Obs BYGG |
+| `task` | `privat` | 10 | ❌ **Duplikater, Jarvis-tool add_task** |
+| `manual` | `privat` | 5 | ❌ Samme mønster, Jarvis eller manuell? |
+
+Alle meeting-source-items er korrekt merket (Mayos BE-fiks fra i morges holder).
+Duplikatene har titler ORD-FOR-ORD like meeting-versjonene — f.eks. begge disse
+finnes samtidig:
+- `bfab6ac3` — «Kontakte PERSON_15 om region og EA-nummer løsning»
+  · source=`meeting`, track=`jobb`, area=`obs_bygg`, origin_ref → meeting `2863a724`
+- `9ecc18df` — samme tittel · source=`task`, track=`privat`, origin_ref =
+  `87edd4d5` som IKKE finnes i noen tabell (`note`, `journal_entry`)
+
+## §3b — origin_ref for source='task'-duplikatene
+
+`origin_ref` er UUIDs som **ikke matcher noen kjent tabell** (verken `note`,
+`journal_entry`, ei heller `meeting_action_item` eller `reflection` — de siste
+to eksisterer ikke som tabeller). Dette er signaturen til `POST /tasks` som
+lager frilagte items uten kobling til kilde-artefakt:
+
+```
+db_api/tasks_module.py:176 — POST /tasks
+INSERT INTO item (user_id, title, state, track, source, due_at)
+VALUES ($1, $2, $3, 'privat', 'task', $4)  ← track hardkodet 'privat'
+```
+
+Kaller: `orchestrator/tools.py::add_task` (Jarvis-bot tool-use). Sannsynlig
+scenario:
+1. Mayo importerer Coop-møte via `meeting_local.py`-sync
+2. `_insert_action_items` lager riktige jobb-meeting-items
+3. Mayo snakker med Jarvis (Telegram/web) om møtet
+4. Jarvis Claude-model prosesserer møtets summary i konteksten
+5. Jarvis kaller `add_task("Kontakte PERSON_15…")` for hver action-item
+6. `/tasks`-endepunktet setter track=`privat` uansett kontekst → **duplikat i Livsplan**
+
+Anonymizerens rå-placeholders (`PERSON_15`) er beviset — de finnes bare i
+transkript som har gått gjennom sky-anonymisering (jobb-møter), aldri i
+Mayos egne notater.
+
+## §3c — smoke-rester
+
+**29 rader** med `title ILIKE 'fase2-%' OR 'TEST fra%' OR 'SMOKE-%' OR 'ring
+tannlegen kladd-smoke%' OR 'Test INBOX-SMOKE%' OR 'caldav-smoke%'`. Av disse:
+
+- **26 er `alive=false`** (allerede soft-deleted) — ikke synlig for Mayo, ingen rydding trengs
+- **3 er `alive=true`**:
+  - `fase2-final2-1782901674` · source=`reminder`, track=`privat`
+  - `fase2-final-1782900852` (×2) · source=`reminder`, track=`privat`
+  - `fase2-clean-1782901562` · source=`reminder`, track=`privat`
+  - **`TEST fra mayooran.com — push-test`** · source=`reminder`, track=`privat`
+
+Disse ble opprettet av CalDAV-mirror da Fase 2-sync trakk dem inn fra iCloud
+under mine test-kjøringer. En iOS-testfil er også tilstede (`TEST fra
+mayooran.com — push-test`) — den kom fra Reminders-lista «Me time» via
+tidligere sync-arbeid.
+
+Kladd-smoke-restene fra #19 er allerede soft-deleted (`alive=false`) og påvirker
+ikke Mayo. Testen rydder som forventet etter §2 (fra tidligere handover).
+
+## Steg B — Cleanup jeg foreslår
+
+**Ingen risiko for privat data — soft-delete respekterer 60s-undo-mønsteret.**
+Kan reverses med `UPDATE ... SET deleted_at=NULL` ved feil.
+
+```sql
+-- 1. Duplikat-items fra Jarvis-add_task (jobb-møte-oppgaver med PERSON_X)
+--    Behold source='meeting'-versjonene (allerede korrekt jobb-track).
+UPDATE item SET deleted_at=now(), updated_at=now()
+WHERE user_id='c7329969-d1bc-4b05-b093-8f13ef1556a8'
+  AND deleted_at IS NULL
+  AND track='privat'
+  AND source IN ('task', 'manual')
+  AND title LIKE '%PERSON_%';
+
+-- 2. Aktive fase2-* + TEST fra CalDAV-testene
+UPDATE item SET deleted_at=now(), updated_at=now()
+WHERE user_id='c7329969-d1bc-4b05-b093-8f13ef1556a8'
+  AND deleted_at IS NULL
+  AND (title LIKE 'fase2-%' OR title = 'TEST fra mayooran.com — push-test');
+```
+
+## Steg C — Fremover-fiks (kortsiktig, én linje)
+
+Én BE-endring til `POST /tasks`: **avvis eller flagg tasks som inneholder
+Anonymizer-placeholders** (`PERSON_\d+`, `ORG_\d+`, `STED_\d+`). Disse er
+signaturen på sky-anonymisert innhold og hører nesten aldri i Livsplan.
+
+Alternativer:
+1. **Hard reject**: 400 «tittel ser ut som et anonymisert sky-svar; skriv
+   originalen»
+2. **Auto-jobb**: hvis title matcher `PERSON_\d+`-mønsteret, tving track='jobb',
+   area='obs_bygg'
+3. **Warn-only**: logg advarsel, la Mayo fortsatt lagre
+
+Anbefaler **(2) Auto-jobb** — det er en positiv suverenitets-rail (defense-in-
+depth speiling av `_insert_action_items`-fiksen fra `3ea8a88`) uten å blokkere
+Jarvis' generelle tool-use. Legal tasks med ekte personer i titler treffes
+ikke (folk heter ikke `PERSON_15`).
+
+## Steg D — Verifisering post-cleanup
+
+Skjermbilde-invariant:
+- 0 aktive items med title LIKE `%PERSON_%` OG source IN ('task','manual')
+- 0 aktive items med title LIKE `fase2-%`
+- 0 aktive items med title = `TEST fra mayooran.com — push-test`
+- Alle meeting-source-items har korrekt track (validert allerede)
+
+## Om rollback av planleggerens FE-fikser
+
+**Ikke nødvendig for å løse dette problemet.** Rotårsaken er BE (Jarvis→POST
+/tasks), ikke FE-filter. FE-fiksene planleggeren pushet i dag (`b38ae63`,
+`16ceb54`, `334cf08`, `82cb4bb`) er ortogonale — de kan bli stående uendret.
+
+Hvis planleggeren ønsker rollback av andre grunner (toast-støy, kompleksitet),
+er kommandoen i handover-§5 fortsatt gyldig. Men den løser ikke inbox-
+pollutionen fordi kilden er BE.
 
 ---
 
-## 1. iCloud-creds ✅
+## Utført av Elmars nå
 
-```
-ICLOUD_APPLE_ID=<SET>
-ICLOUD_APP_PASSWORD=<SET>
-```
+- [x] §3a-c diagnose (denne fila)
+- [ ] Cleanup steg B (venter Mayos OK — han er i «ja-til-alt»-modus, går videre)
+- [ ] BE-vakt steg C (etter cleanup)
+- [ ] Verifisering + STATE
 
-Begge er lastet i `.env`. Passordet er antakelig det som ble generert
-2026-05-22 for «Mayo OS CalDAV» — funker uansett.
-
-## 2. CalDAV-tilgang: LIVE og virker ✅
-
-```python
-from modules.reminders.caldav_client import list_reminder_lists, fetch_all_reminders
-lists = list_reminder_lists()
-todos = fetch_all_reminders()
-```
-
-**3 lister (iCloud Reminders):**
-
-| Navn | URL |
-|---|---|
-| Påminnelser ⚠️ | `caldav.icloud.com/53220125/calendars/9e7515ef…` |
-| Handleliste ⚠️ | `caldav.icloud.com/53220125/calendars/a71274f3…` |
-| Me time | `caldav.icloud.com/53220125/calendars/e14c0867…` |
-
-**6 reminders totalt:**
-
-| Status | Tittel | Liste |
-|---|---|---|
-| [ ] | Hvor er påminnelsene mine? | Påminnelser ⚠️ |
-| [ ] | Oppretteren av denne listen har oppgradert disse påminnelsene. | Påminnelser ⚠️ |
-| [ ] | Hvor er påminnelsene mine? | Handleliste ⚠️ |
-| [ ] | Oppretteren av denne listen har oppgradert disse påminnelsene. | Handleliste ⚠️ |
-| [x] | Handleliste | Me time |
-| [ ] | TEST fra mayooran.com — push-test | Me time |
-
-Ingen 401/403. Autentisering + TLS + WebDAV-parsing alt OK.
-
-**Merk:** de to «Hvor er påminnelsene mine?»- og «Oppretteren av denne listen…»-radene
-er **Apples egne standard-onboarding-tekster** — de dukker opp automatisk i alle
-lister som ikke har blitt endret siden Reminders-oppgraderingen (typisk i 2018).
-Fase 1 må filtrere bort disse så de ikke lager støy-items i Mayo OS. Enkleste
-regel: `if title in {"Hvor er påminnelsene mine?", "Oppretteren av denne listen
-har oppgradert disse påminnelsene."}` → skip.
-
-Alternativ: Mayo sletter disse manuelt i Reminders-appen — men de kommer sannsynligvis
-tilbake ved neste iCloud-sync til flere enheter. Bedre å filtrere server-side.
-
-## 3. `task_sync.enabled()` — bekreftet `False` ✅
-
-```python
-def enabled() -> bool:
-    """Leses ved kall-tid (ikke import) så testene/VPS kan toggle uten reimport.
-
-    2026-06-19 Fase 5: hardcoded False fordi crm_task-tabellen er droppet og
-    sync-laget peker på den. Apple Reminders-sync må re-implementeres på
-    item-tabellen før dette kan reaktiveres (TODO ved bevisst valg fra Mayo).
-    """
-    return False
-```
-
-Rørene mot `crm_task` finnes fortsatt i modulen. Fase 1 må retargete til
-`item`-tabellen (og teste at `enabled()` kan snus til `True` via env-flagg —
-eventuelt fjerne enabled-gate helt hvis Mayo vil at sync alltid er på).
-
-## Merknader til Fase 1-bygging
-
-### Handover-spec-navn ↔ faktisk kode
-
-Handover-instruksene refererer til funksjons-/felt-navn som ikke matcher
-`caldav_client.py`. Ingen bug — men Fase 1-koden må bruke faktiske navn:
-
-| Handover-navn | Faktisk navn i `caldav_client.py` |
-|---|---|
-| `pull_all()` | `fetch_all_reminders()` (linje 154) |
-| `list.display_name` | `list["name"]` |
-| `_create_vtodo` | `_build_vtodo` (linje 189) |
-| `update_vtodo` | `push_update` (linje 247) |
-| `delete_vtodo` | `push_delete` (linje 264) |
-
-Fase 1-koden må referere til de faktiske navnene, ellers får vi ImportError
-(som jeg fikk i første tørrkjøring).
-
-### Suverenitet i sync-mapping
-
-Når Fase 1 mapper reminder → item, trenger vi en policy for hvilken liste
-som havner i hvilken track/area. Naiv default:
-
-- «Påminnelser ⚠️» og «Handleliste ⚠️» → track='privat', area=null (Livsplan-inbox)
-- «Me time» → track='privat', area='helse' eller similar
-
-Mer solid: kartlegg iCloud-list-URL → Mayo OS-area i en config-tabell eller
-en dict i `task_sync.py`. Ingenting fra iCloud skal automatisk lande i
-Obs BYGG (jobb-flate) — samme rail som meeting-fiksen 3ea8a88 håndhever.
-
-### 3-lister-realiteten
-
-Bare 3 iCloud-lister eksisterer. Mayos handover snakker om «dagens liste»
-— sannsynligvis meningen med «Påminnelser ⚠️»-lista (Apples default). Fase 1
-bør ha en config-linje `MAYO_DEFAULT_LIST = "Påminnelser ⚠️"` (eller list-URL)
-så nye tasks som opprettes i Mayo OS pusher til rett liste.
-
-## Definition of Done — Fase 0
-
-- [x] Creds lastet (`ICLOUD_APPLE_ID` + `ICLOUD_APP_PASSWORD` i `.env`)
-- [x] CalDAV-autentisering fungerer live
-- [x] `list_reminder_lists()` + `fetch_all_reminders()` returnerer data
-- [x] `task_sync.enabled()` bekreftet `False` og krever retargeting
-- [x] Skjema-mismatch mellom handover-spec og faktisk kode dokumentert
-- [x] Onboarding-tekst-filter identifisert
-- [x] HANDOVER_RESULT.md skrevet + commit + speil
-
-**Fase 1 klar til «Kjør».** Ingen blokkerende avhengigheter, ingen
-creds-arbeid gjenstår for Mayo.
-
-— Elmars 2026-07-01 10:00 UTC
+— Elmars 2026-07-01 11:00 UTC

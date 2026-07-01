@@ -4,9 +4,54 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-07-01 10:32 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.64 Tasks↔Reminders Fase 2 LEVERT (`3f32942`) — poll-loop live, full CRUD E2E grønn
+**Sist oppdatert:** 2026-07-01 11:20 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.65 Livsplan-inbox-pollution FIKSET (`e980f25`) + Tasks↔Reminders Fase 4 LEVERT (`02e6d03`)
 
-## 🎯 Nyeste (2026-07-01 10:32) — Tasks↔Reminders Fase 2 LEVERT (`3f32942`)
+## 🎯 Nyeste (2026-07-01 11:20) — Livsplan-inbox-pollution rotårsak funnet + fikset (`e980f25`)
+
+**Trigger:** HANDOVER-LIVSPLAN-INBOX-POLLUTION-DETAILED.md — Mayo hadde 111
+items i Prio-inbox med tydelige PERSON_N-titler fra sky-anonymiserte jobb-møter.
+
+### Diagnose avdekket **rotårsak planleggeren ikke forutsatte**
+`_insert_action_items`-fiksen (`3ea8a88` fra i morges) fungerte perfekt —
+alle 8 meeting-source-items var korrekt merket (`track='jobb'`,
+`area='obs_bygg'`). Problemet var **duplikater fra Jarvis-botens
+`tools.add_task`** som kaller `POST /tasks` — endepunktet hardkodet
+`track='privat'` uansett kontekst.
+
+Scenario: Mayo importerer Coop-møte → `_insert_action_items` lager
+korrekte jobb-items → Mayo snakker med Jarvis om møtet → Jarvis leser
+summary, kaller `add_task("Kontakte PERSON_15…")` for hver action-item →
+duplikater lander i Livsplan-inbox.
+
+### Levert
+1. **Cleanup (22 items soft-deleted, 280→258 aktive)**:
+   - 15 duplikat-PERSON-items (source in `task`/`manual`, track=`privat`)
+   - 7 fase2-*/TEST fra Fase 2 CalDAV-testene (source=`reminder`)
+2. **PERSON_-vakt i `POST /tasks`** (`db_api/tasks_module.py::create_task`):
+   - Regex `\b(PERSON|ORG|STED|DATO)_\d+\b` på title
+   - Match → `track='jobb'`, `area='obs_bygg'`, `source='meeting'`
+   - Logges `[TASK-ANONYMIZER-GATE]`
+   - Normal-titler uendret (`track='privat'`, `source='task'`)
+   - Live-verifisert med to test-tasks
+
+Positiv defense-in-depth speiling av `_insert_action_items`-rail på tvers
+av tool-use-inngangen. Legitime tasks med ekte navn treffes ikke.
+
+### Ikke rullet tilbake FE
+Planleggerens 4 FE-commits (`b38ae63`, `16ceb54`, `334cf08`, `82cb4bb`)
+er ortogonale til rotårsaken. Beholdt.
+
+## 🎯 Forrige (2026-07-01 10:49) — Tasks↔Reminders Fase 4 + cleanup LEVERT (`02e6d03`)
+
+- **Smoke #29** `caldav-sync-invariant.js` — 3 invariant-vakter:
+  privat → iCloud (icloud_uid satt), jobb blokkert, sensitive blokkert.
+  Bruker `POST /reminders/sync` for manuell trigger, ~20s per kjøring.
+  **Grønn i full suite (21/24 pass, 3 røde pre-existing).**
+- **§10 Cleanup**: CLAUDE.md-linja slettet, task_sync-docstring oppdatert,
+  legacy iOS Shortcut-ruter (`/reminders/bulk-sync`, `/reminders/ios-ack`)
+  flagget deprecated.
+
+## 🎯 Forrige (2026-07-01 10:32) — Tasks↔Reminders Fase 2 LEVERT (`3f32942`)
 
 **Trigger:** Mayo: «kjør Fase 2» — HANDOVER-TASKS-REMINDERS-SYNC-REBUILD.md.
 
