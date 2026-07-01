@@ -4,7 +4,25 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-30 · **Av:** planlegger (claude.ai) · **Versjon:** v0.57 Sovereignty-scope-invariant handover skrevet (etter Mayos 4. tap-skrekk)
+**Sist oppdatert:** 2026-06-30 · **Av:** planlegger (claude.ai) · **Versjon:** v0.58 Tasks↔Reminders sync-rebuild handover (Mayo lager reminder i Apple som ikke kommer)
+
+## 🎯 Nyeste (2026-06-30, planlegger) — Handover: bi-direksjonell Tasks ↔ Apple Reminders sync-rebuild (`HANDOVER-TASKS-REMINDERS-SYNC-REBUILD.md`)
+
+> **Mayo:** «jeg har opprettet oppgave i apple reminder som ikke kommer til mayo os. jeg må ha synch begge veier.»
+>
+> **Diagnose (fra kode-audit, ikke VPS):** sync-laget er **hardcoded slått av** siden 2026-06-19 (Fase 5 droppet `crm_task`-tabellen som sync-laget pekte på). `task_sync.py::enabled()` returnerer `return False` med kommentar «Apple Reminders-sync må re-implementeres på item-tabellen». Kun `_mirror_reminder_to_item` (retning A) fungerer, og bare når iOS Shortcut manuelt kaller `POST /reminders/bulk-sync`. Motsatt retning (item → reminder) mangler helt. Feature-flagget `TASK_REMINDER_SYNC=1` gjør derfor ingenting — reconcile-loop kaller `enabled()` som er hardcoded False.
+>
+> **CLAUDE.md-linja «RESOLVED 2026-06-11» var misvisende:** ja, Mayo valgte Option B (sync-layer), og det ble implementert i `2cc8e0c`. Men det ble senere kastet i Fase 5 uten at CLAUDE.md-linja ble oppdatert. Handoveren §9 sier å rydde denne.
+>
+> **Handoveren spec-er rebuild i 4 faser** (Recon → BE på item-tabell → iOS Shortcut-kø + Retning B → Reconcile-loop → Smoke #29). Mest arbeid: task_sync.py-omskriving av crm_task → item + `_mirror_item_to_reminder` ny funksjon + `GET /reminders/pending`-kø + iOS Shortcut-oppdatering med `delete_queue`-håndtering.
+>
+> **🔴 Sovereignty:** kun `track='privat'`-items speiles til Apple (jobb-items rører aldri iCloud). Sensitivt-flagg (IVF/økonomi) speiles IKKE per anbefaling (Mayo bekrefter i Fase 0). Kun én dedikert «Mayo OS»-liste er sync-scope; andre lister rører vi ikke.
+>
+> **4 faser med STOP-gates:** Fase 0-recon krever Mayos «kjør» + valg på sensitivt. Fase 2 (iOS Shortcut) krever manuell test før automation. Fase 4 (smoke) krever 24t uten ping-pong i logg.
+>
+> **Feature-flagg:** `TASK_REMINDER_SYNC=1` settes som SISTE steg av Fase 3 så sync-en faktisk starter.
+
+## 🎯 Forrige (2026-06-30, planlegger) — Sovereignty-scope-invariant handover
 
 ## 🎯 Nyeste (2026-06-30, planlegger) — Handover for arkitektur-fiks: `?scope=`-invariant på server (`HANDOVER-SOVEREIGNTY-SCOPE-INVARIANT.md`)
 
