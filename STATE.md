@@ -4,9 +4,67 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-07-01 14:05 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.71 Mock-ITEMS-lekkasje til desktop stengt (`dc93ed1`) + Jarvis-brief audit
+**Sist oppdatert:** 2026-07-01 14:35 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.72 Utvidet jobb-guard + defense-in-depth (`633c615` + FE `5efb339`)
 
-## 🎯 Nyeste (2026-07-01 14:05) — Mock-ITEMS lakk til desktop-Livsplan (`dc93ed1`)
+## 🎯 Nyeste (2026-07-01 14:35) — Jarvis-klonet 18 jobb-tasks som privat (`633c615` + `5efb339`)
+
+**Trigger:** Mayo: «sjekk andre steder mock-data kan lekke inn og det ligger
+forsatt mock data og obs bygg jobb relaterte oppgaver i private
+livsplanlegger. rydd opp».
+
+Playwright-audit av `/tasks`-fanen viste at etter forrige fix-runde var
+fortsatt følgende synlig:
+  Leona, Marisha, Kristine, Emma, «Ring Lisa fra Jobb», «Møte med 3360»,
+  «reiseregninger», «checkout-struktur», «merkevareprofil», m.fl.
+
+### Rotårsak: Jarvis add_task klonet meeting-actions med assignee-suffiks
+Forrige `TASK-DUPLICATE-GATE` matchet KUN eksakt title mot meeting-jobb-
+items. Men Jarvis-klonene har suffiks «— @Navn»:
+  meeting: `Leona må involveres i nettløsningen for merkevareprofil`
+  klone:   `Leona må involveres i nettløsningen for merkevareprofil — @Leona`
+
+Exact-match feilet → duplikatet ble opprettet som `source=task/manual,
+track=privat` → synlig i Livsplan+Tasks.
+
+### 4 lag defense-in-depth
+
+**Backend `633c615` — utvidet `POST /tasks`-guard:**
+  1. PERSON_X/ORG_X-anonymizer (som før)
+  2. Eksakt title-match mot meeting-item (som før)
+  3. NY: **normalisert match** — strip `— @Navn`-suffiks + lowercase, match
+     mot alle aktive meeting-items (uansett track). Match → dedupe.
+  4. NY: **jobb-signal-heuristikk** — `@[Navn]`, «fra jobb»,
+     «reiseregning», «3360», «obs bygg», «oppsbygg» → force
+     `track='jobb'`, `area='obs_bygg'`, `source='meeting'`.
+
+**Frontend `5efb339` — defense-in-depth mot fremtidige lekkasjer:**
+  - `/api/db/items?limit=300&track=privat` på alle 3 caller-steder
+    (app.jsx, desktop.jsx, capture.jsx). Speiler `/tasks/unified?track=privat`.
+  - `capture.jsx.refreshFromBackend` filtrerer nå også `source !== 'meeting'`
+    og `source !== 'voice-journal'` (utvidet fra kun track/area).
+  - `desktop.jsx:208 Card` L0-command-map: `ITEMS.find(...)` → `ctx.items.find(...)`.
+  - `today.jsx` fjernet ubrukt `ITEMS`-import.
+
+**DB-cleanup:** soft-delete av 18 duplikater (Leona/Marisha/Kristine/3360-
+møte/Ring Lisa fra Jobb/reiseregninger). Meeting-originaler intakt i
+Obs BYGG-flaten.
+
+### Curl-verifisering av guarden
+```
+«Kjøp melk på Rema»          → task/privat/null       ✅
+«Følg opp Emma — @Emma»      → meeting/jobb/obs_bygg  ✅ (mention-gate)
+«Ring 3360 om ny sak»        → meeting/jobb/obs_bygg  ✅ (keyword-gate)
+```
+
+### Playwright-verifisering (desktop + mobil × 4 sider = 8 sjekk)
+Alle 8 kombinasjoner clean: 0 av 27 test-nøkkelord (mock + jobb) synlig i DOM. ✅
+
+### Bonus: Jarvis-brief audit
+`/brief/today` leser `SELECT title FROM crm_task ...`, men tabellen ble
+droppet i Fase 5 → returnerer `"tasks": []`. Ingen lekkasje. TODO: migrere
+til `item`-tabellen med `track=privat`-filter, eller fjerne som dead code.
+
+## 🎯 Forrige (2026-07-01 14:05) — Mock-ITEMS lakk til desktop-Livsplan (`dc93ed1`)
 
 **Trigger 1 (Jarvis-brief-audit):** Mayo: «sjekk om samme lekkasje finnes i
 Jarvis-briefen».
