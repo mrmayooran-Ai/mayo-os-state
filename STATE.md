@@ -4,9 +4,51 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-07-01 11:20 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.65 Livsplan-inbox-pollution FIKSET (`e980f25`) + Tasks↔Reminders Fase 4 LEVERT (`02e6d03`)
+**Sist oppdatert:** 2026-07-01 11:55 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.66 Subtask-glitch fikset (FE `b7ef35e`) + inbox-cleanup runde 2 (BE `63e4a7f`)
 
-## 🎯 Nyeste (2026-07-01 11:20) — Livsplan-inbox-pollution rotårsak funnet + fikset (`e980f25`)
+## 🎯 Nyeste (2026-07-01 11:55) — Subtask «task-i-en-task» glitch fikset (FE `b7ef35e`)
+
+**Trigger:** Mayo: «under task i en task i livsplanlegger funker ikke.
+det jeg mener er at det glitcher jeg får ikke laget en task i en task.»
+
+### Rotårsak
+`ctx.openItem(id)` i `app.jsx` fetchet full-detail fra `/items/{id}` (inkl.
+subtasks-array) og satte den lokale `it`-variabelen for `ItemDetail`-prop
+— men skrev IKKE oppdatert parent-rad tilbake til `ctx.items`. Parent-raden
+forble utdatert (fra `loadItems`-mapping som ikke inkluderer subtasks-felt).
+
+`ItemDetail.live = ctx.items.find(x => x.id === item.id) || item` leste
+fra ctx.items → parent uten subtasks-array → `subs = live.subtasks || []`
+ble tomt selv når DB hadde subtasks.
+
+Symptomkjeden:
+1. Åpne task → 0 undertasker vist selv om DB har dem
+2. Legg til undertask → vises optimistisk, POST går til backend OK
+3. Lukk + åpne → undertask forsvinner (live leser gammel parent)
+4. Neste refresh av loadItems → parent restauresres uten subtasks-array
+
+### Fix
+`app.jsx::openItem` (2 linjer endret + kommentarblokk):
+```js
+setItems(prev => {
+  const remaining = prev.filter(p => p.parent_id !== id && p.id !== id);
+  const subRows = subs.map(s => ({ ...s, parent_id: id, real: true }));
+  return [...remaining, { ...it }, ...subRows];  // parent MED subtasks
+});
+```
+
+Parent-raden i ctx.items erstattes nå med full-detail (inkl.
+subtasks-array). Subtask-rader beholdt som separate items med
+`parent_id` så `patchSub`/`toggleSub` fortsatt finner dem for
+individuell PATCH.
+
+### Verifisert
+- BE upåvirket: `POST /items/{id}/subtasks` returnerer subtask med
+  parent_id satt. `GET /items/{id}` returnerer subtasks-array (verifisert
+  live før fix).
+- FE build grønn.
+
+## 🎯 Forrige (2026-07-01 11:20) — Livsplan-inbox-pollution rotårsak funnet + fikset (`e980f25` + `63e4a7f`)
 
 **Trigger:** HANDOVER-LIVSPLAN-INBOX-POLLUTION-DETAILED.md — Mayo hadde 111
 items i Prio-inbox med tydelige PERSON_N-titler fra sky-anonymiserte jobb-møter.
