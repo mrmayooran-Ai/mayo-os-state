@@ -4,9 +4,99 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-30 20:15 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.56 BE-side suverenitets-rail + smoke #28 + scan-test-OCR deployet. Runner trenger Mayo-passord.
+**Sist oppdatert:** 2026-07-01 09:40 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.59 Coop-møter: navn bevares på jobb-møter + Syncthing-auto-import bygget (`6992c6d`)
 
-## 🎯 Nyeste (2026-06-30 20:15) — Akutt-handover §1-4
+## 🎯 Nyeste (2026-07-01 09:40) — Coop-møter: navn bevares + auto-import via Syncthing (`6992c6d`)
+
+**Trigger:** Mayo: (a) «vil faktisk ha navnene vi nevner og avdelinger» —
+PERSON_1/PERSON_14 er tungvint å oversette for interne jobb-møter.
+(b) meeting_local.py sin sync feiler stille — bygg watcher på VPS så
+Syncthing tar sync-robustheten.
+
+### §A — `claude_extract(anonymize=…)`-rail
+`db_api/meeting_module.py`:
+- Ny signatur `claude_extract(segments, *, anonymize=True)`.
+- Default forblir True (private møter uendret suverenitet).
+- `anonymize=False`: rå transkript → Claude → navn bevares i title,
+  summary, entities, action_items, decisions.
+- Fire kall-veier oppdatert til å lese `meeting.is_private` og sende
+  `anonymize=is_private`:
+  1. `process_meeting_pipeline` (live-opptak)
+  2. `_finalize_live_meeting` (analyze-etter-audio-chunks)
+  3. `meeting_import` — leser + skriver `is_private` (default False,
+     jobb-import). INSERT-linjen inkluderer flagget nå.
+  4. `_run_reanalysis` («↻ Analyser»-knappen)
+
+Reanalysert Coop-møtet fra i går (`c2f82b9a`):
+- 6 action_items har ekte navn: «Send siste purring til Klarna», «Send
+  mail til Øyvind», «Sette opp cookieless-tracking», etc.
+- Summary: «Klarna-integrasjon», «GA4», «Google Ads», «70% av
+  budsjettet», «1. juli» — ekte kontekst.
+- Ingen PERSON_N lenger.
+
+### §B — `modules/coop_watcher/` (Syncthing-auto-import)
+Poll-basert watcher på `/home/mayo/coop-moter-inbound/`. Syncthing
+speiler `/Users/mayo/coop-møter/` fra Mac til denne mappen.
+
+`watcher.py` (~180 linjer):
+- Poll hver 30s. Robusthet: sjekker `.syncthing.<navn>.tmp`-ledsager
+  + krever mtime > 0.5s.
+- Parser meeting_local.py-format: `## 📝 Notater` → `user_notes`,
+  `## Transkript` → `transcript_text`, filnavn → `scheduled_at`.
+- POST `/meeting/import` med `X-DB-Token`:
+  `is_private=False`, `tags=["obs-bygg", "coop"]`, `title="Coop <stem>"`.
+- Suksess → `mv .processed/`, feil → `mv .failed/` (journal-logg).
+
+Systemd: `infra/systemd/mayo-coop-watcher.service`
+- After db-api + syncthing@mayo, Restart=on-failure.
+
+### Live-verifisert
+Test-fil med Kaja/Emilie/Jørn/Gard/Klarna:
+- Watcher parset OK · POST 200 · 3 action_items med ekte navn:
+  «Kontakte Jørn», «Følge opp med Gard», «Sende purring til Klarna».
+- `track='jobb'`, `area='obs_bygg'` (suverenitets-rail intakt).
+- Test-møtet slettet via DELETE /meeting/{id} etter verifisering.
+
+### 🟡 Krever Mayo-sudo for install
+```bash
+sudo cp /home/mayo/mayo-ai-os/infra/systemd/mayo-coop-watcher.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now mayo-coop-watcher
+```
++ Mac Syncthing: legg til `/home/mayo/coop-moter-inbound/` som ny delt
+mappe, peer med `/Users/mayo/coop-møter/`.
+
+## 🎯 Forrige (2026-06-30, planlegger) — Handover: bi-direksjonell Tasks ↔ Apple Reminders sync-rebuild (`HANDOVER-TASKS-REMINDERS-SYNC-REBUILD.md`)
+
+> **Mayo:** «jeg har opprettet oppgave i apple reminder som ikke kommer til mayo os. jeg må ha synch begge veier.»
+>
+> **Diagnose (fra kode-audit, ikke VPS):** sync-laget er **hardcoded slått av** siden 2026-06-19 (Fase 5 droppet `crm_task`-tabellen som sync-laget pekte på). `task_sync.py::enabled()` returnerer `return False` med kommentar «Apple Reminders-sync må re-implementeres på item-tabellen». Kun `_mirror_reminder_to_item` (retning A) fungerer, og bare når iOS Shortcut manuelt kaller `POST /reminders/bulk-sync`. Motsatt retning (item → reminder) mangler helt. Feature-flagget `TASK_REMINDER_SYNC=1` gjør derfor ingenting — reconcile-loop kaller `enabled()` som er hardcoded False.
+>
+> **CLAUDE.md-linja «RESOLVED 2026-06-11» var misvisende:** ja, Mayo valgte Option B (sync-layer), og det ble implementert i `2cc8e0c`. Men det ble senere kastet i Fase 5 uten at CLAUDE.md-linja ble oppdatert. Handoveren §9 sier å rydde denne.
+>
+> **Handoveren spec-er rebuild i 4 faser** (Recon → BE på item-tabell → iOS Shortcut-kø + Retning B → Reconcile-loop → Smoke #29). Mest arbeid: task_sync.py-omskriving av crm_task → item + `_mirror_item_to_reminder` ny funksjon + `GET /reminders/pending`-kø + iOS Shortcut-oppdatering med `delete_queue`-håndtering.
+>
+> **🔴 Sovereignty:** kun `track='privat'`-items speiles til Apple (jobb-items rører aldri iCloud). Sensitivt-flagg (IVF/økonomi) speiles IKKE per anbefaling (Mayo bekrefter i Fase 0). Kun én dedikert «Mayo OS»-liste er sync-scope; andre lister rører vi ikke.
+>
+> **4 faser med STOP-gates:** Fase 0-recon krever Mayos «kjør» + valg på sensitivt. Fase 2 (iOS Shortcut) krever manuell test før automation. Fase 4 (smoke) krever 24t uten ping-pong i logg.
+>
+> **Feature-flagg:** `TASK_REMINDER_SYNC=1` settes som SISTE steg av Fase 3 så sync-en faktisk starter.
+
+## 🎯 Forrige (2026-06-30, planlegger) — Sovereignty-scope-invariant handover
+
+## 🎯 Nyeste (2026-06-30, planlegger) — Handover for arkitektur-fiks: `?scope=`-invariant på server (`HANDOVER-SOVEREIGNTY-SCOPE-INVARIANT.md`)
+
+> **Trigger:** Mayo etter 4. tap-skrekk på én dag: «forklar hvorfor dette skjer. vi fikser jo dette?». Hard refresh løste ikke det Mayo ser i Livsplan-inbox etter min FE-fiks `b38ae63`. Planlegger tok ansvar for at symptomlapping har vært mønsteret hele dagen — 4 FE-filtre lagt til, hver som svar på en oppdaget lekkasje, ingen som håndhevet invariant ved kilden.
+>
+> **Arkitektur-endring foreslått:** avvikle sovereignty-som-FE-filter-lister. Innfør `?scope=privat|jobb|all` som obligatorisk parameter på `/items` og `/tasks/unified`. Server serverer kun rader som matcher scope — FE-filtre blir belt+suspenders redundans, ikke primær forsvar. Én sovereignty-clause per endepunkt i BE, ikke tre `.filter()`-calls per side per fane i FE.
+>
+> **Erkjennelse av Elmars' pågående arbeid (etter jeg skrev handoveren, `03c9167`+`3ea8a88`+`5b3d559`):** Elmars leverte allerede mye av det jeg spec-et: (1) `_insert_action_items` bruker nå `meeting.is_private` som truth-source for track (rotårsak av Mayos klage fjernet); (2) smoke #28 kryss-feed-vakt (53+99+42 rader vaktet, grønn); (3) runner online → planlegger kan trigge BE-deploys via API. **Kritisk audit-innsikt fra Elmars:** min opprinnelig planlagte backfill-SQL «UPDATE … track='jobb' WHERE source='meeting'» ville flyttet privat IVF-data til jobb. Grunnlov §3 reddet det.
+>
+> **Handover-delta (dette som fortsatt gjenstår):** `?scope=`-parameter (server-side query-filter, ikke bare validering), FE-forenkling til å bruke scope, NOT NULL-constraint på `item.track`, og 5 faser med STOP-gates.
+>
+> **🔴 Fase 0 prioritet:** finn ut hva Mayo FAKTISK ser i Livsplan-inbox nå. Elmars' audit fant 0 aktive lekkasjer, men Mayo ser fortsatt items etter hard refresh. Én av tre: misidentifikasjon (private IVF med «fra møte»-label ser ut som Obs BYGG), stale FE-state, eller fjerde data-vei ingen fanget. Kartlegg FØR Fase 1 bygges.
+
+## 🎯 Forrige (2026-06-30 20:15, Elmars) — Akutt-handover §1-4
 
 **Trigger:** Mayos akutt-pakke (4 punkter, alle parallelle).
 
