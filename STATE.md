@@ -4,9 +4,41 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-07-01 21:35 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.73 Undertasks får parent-notat i Google Calendar (`bbf3032`)
+**Sist oppdatert:** 2026-07-01 22:20 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.74 Kalender + Oppgaver flyttet inn i Livsplanleggeren (frontend `6eaa5e6` + `7abd565`)
 
-## 🎯 Nyeste (2026-07-01 21:35) — Gcal-sync: parent-referanse for undertasks (`bbf3032`)
+## 🎯 Nyeste (2026-07-01 22:20) — Nav-flytting: Kalender + Oppgaver → Livsplanleggeren
+
+**Trigger:** Mayo: «flytt kalender som ligger i hoved menyen og oppgaver
+i hovedmenyen inn i livsplanlegger».
+
+**Frontend (`mayo-os` / `feat/whoop-redesign`, commits `6eaa5e6` + `7abd565`):**
+- Hovedmeny (DesktopSidebar + MobileNav): Kalender/Oppgaver-punktene fjernet;
+  `/kalender|/calendar|/tasks` markerer nå «Livet» som aktiv
+- Livsplan v12 desktop (`desktop.jsx`): to nye LeftRail-views `kalender` +
+  `tasks` (embedder PageKalender/PageTasks); `?tab=`-deep-link i view-init
+- Livsplan v12 mobil (`app.jsx` + `today.jsx`): nye sider i PAGES-map +
+  «Andre visninger»-innganger (Frister / Kalender / Oppgaver)
+- `App.jsx`: route-swap iht. standardregelen — `/kalender` →
+  `/livsplan?tab=kalender`, `/tasks` → `/livsplan?tab=tasks`; gamle sider
+  beholdt som `/kalender-v1` + `/tasks-v1` rollback
+- CommandPalette peker på de nye tab-URL-ene
+- ⚠️ App.jsx ble overskrevet av en parallell sesjon før commit — redirectene
+  re-applisert og committet separat som `7abd565`
+
+**Verifisert live (Playwright, dist bygget fra `7abd565`):** begge
+redirects lander på riktig tab; desktop-rail viser Kalender + Oppgaver med
+agenda/buckets rendret; sidebar uten de gamle punktene; mobil «Andre
+visninger» + redirect OK. (NB: `text-transform: uppercase` → bruk
+`.toLowerCase()` i innerText-sjekker.)
+
+**⏭️ Neste økt (åpen, fra Mayo):** «under helse og i dag så stemmer ikke
+whoop data med det som står i helse fanen. helse fanen er fasit» —
+Whoop-tall på «I dag»-visningen avviker fra Helse-fanen (`/strength`);
+Helse-fanen er fasit. Ikke påbegynt.
+
+---
+
+## 🎯 (2026-07-01 21:35) — Gcal-sync: parent-referanse for undertasks (`bbf3032`)
 
 **Trigger:** Mayo: «undertasks eller hoved tasks, så lenge de har
 forfallsdato må de opprettes i den datoen i google kalender. samt
