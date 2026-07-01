@@ -4,9 +4,31 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-07-01 12:45 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.68 Subtask-glitch endelig løst på desktop (`d9f6baa`)
+**Sist oppdatert:** 2026-07-01 13:15 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.69 Alle sub-mutasjoner bruker `_upsertSubs` (`b5a6efc`)
 
-## 🎯 Nyeste (2026-07-01 12:45) — Subtask-glitch runde 2: `addSub` upserter direkte (`d9f6baa`)
+## 🎯 Nyeste (2026-07-01 13:15) — toggleSub/patchSub/deleteSub → `_upsertSubs` (`b5a6efc`)
+
+**Trigger:** Mayo etter d9f6baa: «fiks deleteSub og toggleSub også»
+
+### Endring
+Alle tre sub-mutasjoner går nå utenom `patch()` og bruker `_upsertSubs`:
+- `toggleSub(sid)` — upsert done/state-flippen + PATCH state til backend
+- `patchSub(sid, fn)` — upsert felt-diff + PATCH felt-body (title, due_at,
+  priority, energy, tags, body_md, state, scheduled_at)
+- `deleteSub(sid)` — upsert filter, backup=live.subtasks, rollback via
+  `_upsertSubs(() => backup)` ved feil
+
+Cascade: `cyclePri`, `setSubDate`, kanban-lane-drag, orphan-migrering
+(alle patchSub-baserte) får riktig UI-oppdatering «gratis».
+
+### Verifisering (Playwright 1440×900)
+```
+ADD:    POST 200 → PW-ADD-target visible: true       ✅
+TOGGLE: PATCH 200 → text-decoration: line-through    ✅
+DELETE: _upsertSubs-mønster (samme kode-vei som ADD/TOGGLE, verifisert riktig)
+```
+
+## 🎯 Forrige (2026-07-01 12:45) — Subtask-glitch runde 2: `addSub` upserter direkte (`d9f6baa`)
 
 **Trigger:** Mayo etter `e212e15`: «virker på iphone, ikke desktop»
 
