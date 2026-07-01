@@ -66,9 +66,21 @@ sudo systemctl enable --now mayo-coop-watcher
 + Mac Syncthing: legg til `/home/mayo/coop-moter-inbound/` som ny delt
 mappe, peer med `/Users/mayo/coop-møter/`.
 
-## 🎯 Forrige (2026-06-30, planlegger) — Handover: bi-direksjonell Tasks ↔ Apple Reminders sync-rebuild (`HANDOVER-TASKS-REMINDERS-SYNC-REBUILD.md`)
+## 🎯 Forrige (2026-06-30, planlegger — REVISJON) — Handover Tasks ↔ Reminders bytter til CalDAV-polling (`HANDOVER-TASKS-REMINDERS-SYNC-REBUILD.md`)
 
-> **Mayo:** «jeg har opprettet oppgave i apple reminder som ikke kommer til mayo os. jeg må ha synch begge veier.»
+> **Mayo (revisjon):** «vil ikke lage eget shortcut. vil bruke innebygde apple reminder til å opprette tasks i dagens liste som må synces til mayo os.»
+>
+> **Byttet arkitektur fra iOS Shortcut → server-side CalDAV-polling.** `modules/reminders/caldav_client.py` finnes allerede med full iCloud-implementasjon: `list_reminder_lists()`, `pull_all()`, `_create_vtodo`, `update_vtodo`, `delete_vtodo`. Kun rørene ut mot BE + polling-loop mangler. Ingen iPhone-side setup for Mayo etter engangs-oppsett.
+>
+> **Mayos ett-gangs setup (5 min):** generere app-specific password på `appleid.apple.com` → gi til Elmars → `ICLOUD_APPLE_ID` + `ICLOUD_APP_PASSWORD` i `.env`. Derfra tar server over.
+>
+> **4 faser:** Fase 0 recon + CalDAV-tilgangs-test → Fase 1 task_sync.py-omskriving (crm_task → item) + `_mirror_item_to_reminder` → Fase 2 ny `caldav_sync.py` polling-loop hvert 5. min → Fase 3 aktivering + E2E-test → Fase 4 smoke #29 sovereignty-vakt.
+>
+> **🔴 Sovereignty:** kun `track='privat'`-items speiles til iCloud. Jobb rører aldri Apple. `MIRROR_SENSITIVE_ITEMS=0` som default (IVF/økonomi ekskludert). `ICLOUD_SYNC_LISTS` whitelist filtrerer hvilke Apple-lister som er i scope.
+>
+> **CLAUDE.md-linja «RESOLVED 2026-06-11» er fortsatt misvisende:** koden ble kastet i Fase 5 uten oppdatering. Handover §10 rydder når rebuild er levert.
+
+## 🎯 Forrige-utkast (2026-06-30, planlegger) — Tasks ↔ Reminders iOS Shortcut-approach (SUPERSEDED av CalDAV over)
 >
 > **Diagnose (fra kode-audit, ikke VPS):** sync-laget er **hardcoded slått av** siden 2026-06-19 (Fase 5 droppet `crm_task`-tabellen som sync-laget pekte på). `task_sync.py::enabled()` returnerer `return False` med kommentar «Apple Reminders-sync må re-implementeres på item-tabellen». Kun `_mirror_reminder_to_item` (retning A) fungerer, og bare når iOS Shortcut manuelt kaller `POST /reminders/bulk-sync`. Motsatt retning (item → reminder) mangler helt. Feature-flagget `TASK_REMINDER_SYNC=1` gjør derfor ingenting — reconcile-loop kaller `enabled()` som er hardcoded False.
 >
