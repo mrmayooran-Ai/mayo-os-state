@@ -4,9 +4,121 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-30 · **Av:** planlegger (claude.ai) · **Versjon:** v0.58 Tasks↔Reminders sync-rebuild handover (Mayo lager reminder i Apple som ikke kommer)
+**Sist oppdatert:** 2026-07-01 · **Av:** planlegger (claude.ai) · **Versjon:** v0.61 Subtask stumping-bug fix (FE `16ceb54`) — realId() stripper prefix på items fra /tasks/unified
 
-## 🎯 Nyeste (2026-06-30, planlegger) — REVISJON: Handover Tasks ↔ Reminders bytter til CalDAV-polling (`HANDOVER-TASKS-REMINDERS-SYNC-REBUILD.md`)
+## 🎯 Nyeste (2026-07-01, planlegger) — ItemDetail: skjult skrive-tap på prefiksede items (FE `16ceb54`)
+
+> **Mayo (skjermbilde):** «i tasks får jeg ikke laget undertasks. selv om jeg skriver i undertasks og enter funker det ikke eller trykker på + knapp». Detail-arket for en privat IVF-behandlingsplan-oppgave — input og +-knapp synlig, men INGENTING skjer.
+>
+> **Rotårsak:** items kartlagt fra `/tasks/unified` har prefiksede id-er (`meeting:<uuid>`, `reminders:<uuid>`). Alle 4 FE-guard-sjekker i `item.jsx` testet mot `/^[0-9a-fA-F-]{36}$/` (36-tegn UUID med hyphens). Prefix sprenger totallen → regex feiler → API-kall hoppes over stille. Ingen error, ingen toast — no-op.
+>
+> **Skjult skade:** rammet ikke bare undertasks. `patch()` (autosave av tittel/notat/mood/tags/etc), `addSubInLane` (kanban-variant) og ALLE skrive-operasjoner på prefiksede items ble stille droppet. Mayos redigeringer forsvant.
+>
+> **Fiks (`16ceb54`, `src/mobile/livsplan_v12/item.jsx`):** ny `realId()`-helper stripper prefix ved siste `:` og validerer UUID. Brukt i patch, addSub, addSubInLane. deleteSub/patchSub/toggleSub var uendret siden de opererer på subtask-sids (rene UUID fra server). Bonus: null realId → ærlig toast «Kan ikke lagre undertask (uventet id-format)» i stedet for silent no-op (CLAUDE.md «aldri lyv om lagring»).
+>
+> Auto-deploy ~2 min. Mayo refresher detalj-arket → subtasks kan legges til, tittel/notat-edits persisteres.
+
+## 🎯 Forrige (2026-07-01 10:10, Elmars) — Tasks↔Reminders Fase 1 LEVERT (`cb08d9f`)
+
+**Trigger:** Mayo: «kjør Fase 1» — HANDOVER-TASKS-REMINDERS-SYNC-REBUILD.md.
+
+### Levert
+- **`modules/reminders/task_sync.py`** fullt omskrevet fra droppet
+  `crm_task` til `item`-tabellen. `enabled()` leser
+  `TASK_REMINDER_SYNC=1` (allerede satt i .env).
+- **`should_mirror_item()`** sentral suverenitets-vakt:
+  (1) `track='privat'` påkrevd · (2) `sensitive` blokkert (default) ·
+  (3) `source='reminder'` blokkert (ping-pong-vern)
+- **`apply_item_change(item_id)`** — inline-hook fra POST + PATCH:
+  first-run INSERTer reminder-rad med `icloud_uid=mayo-item-<uuid>`,
+  `source='local'`, `sync_state='pending_push'`; lenker
+  `item.reminder_id` → ny rad. Subsequent runs UPDATEer eksisterende.
+- **`apply_item_delete(reminder_id)`** — soft-delete → pending_delete
+  på reminder. Idempotent no-op uten link.
+- **`apply_reminder_change()`** retargetet til item, 3 idempotens-veier
+  (linked update / existing resurrekt / new INSERT).
+- **`delete_items_for_missing_reminders()`** soft-delete istedenfor hard-
+  delete (bevarer 60s-undo-mønsteret).
+- **`reconcile_once()`** JOIN item↔reminder på `reminder_id`.
+
+`db_api/item_module.py` — fire-and-forget hooks etter DB-commit i
+`create_item`, `patch_item`, `delete_item`. Lazy-import samme mønster
+som `_gcal_schedule_sync`. Blokkerer aldri API-svar; feiler stille i
+loggen.
+
+### Live-verifisert med curl-testrunde
+- POST `/items` (privat) → reminder-rad 36 opprettet · `item.reminder_id` lenket
+- PATCH state=done → `reminder.completed=t`, `completed_at` satt, `pending_push`
+- POST track=jobb → **0** reminder-rader (suverenitet OK)
+- POST area=ivf (sensitive=true, `MIRROR_SENSITIVE_ITEMS=0`) → **0** reminder-rader
+- DELETE item → `reminder.sync_state='pending_delete'`
+
+### 🟡 Config-sjekk før Fase 2
+`TASK_SYNC_LIST` er default `"Påminnelser ⚠️"` (matcher Mayos hoved-liste).
+Kan overstyres i `.env`. `MIRROR_SENSITIVE_ITEMS=0` (default nei — IVF/økonomi
+speiles ikke). Ingen endring nødvendig med mindre Mayo vil noe annet.
+
+## 🎯 Forrige (2026-07-01 09:40) — Coop-møter: navn bevares + auto-import via Syncthing (`6992c6d`)
+
+**Trigger:** Mayo: (a) «vil faktisk ha navnene vi nevner og avdelinger» —
+PERSON_1/PERSON_14 er tungvint å oversette for interne jobb-møter.
+(b) meeting_local.py sin sync feiler stille — bygg watcher på VPS så
+Syncthing tar sync-robustheten.
+
+### §A — `claude_extract(anonymize=…)`-rail
+`db_api/meeting_module.py`:
+- Ny signatur `claude_extract(segments, *, anonymize=True)`.
+- Default forblir True (private møter uendret suverenitet).
+- `anonymize=False`: rå transkript → Claude → navn bevares i title,
+  summary, entities, action_items, decisions.
+- Fire kall-veier oppdatert til å lese `meeting.is_private` og sende
+  `anonymize=is_private`:
+  1. `process_meeting_pipeline` (live-opptak)
+  2. `_finalize_live_meeting` (analyze-etter-audio-chunks)
+  3. `meeting_import` — leser + skriver `is_private` (default False,
+     jobb-import). INSERT-linjen inkluderer flagget nå.
+  4. `_run_reanalysis` («↻ Analyser»-knappen)
+
+Reanalysert Coop-møtet fra i går (`c2f82b9a`):
+- 6 action_items har ekte navn: «Send siste purring til Klarna», «Send
+  mail til Øyvind», «Sette opp cookieless-tracking», etc.
+- Summary: «Klarna-integrasjon», «GA4», «Google Ads», «70% av
+  budsjettet», «1. juli» — ekte kontekst.
+- Ingen PERSON_N lenger.
+
+### §B — `modules/coop_watcher/` (Syncthing-auto-import)
+Poll-basert watcher på `/home/mayo/coop-moter-inbound/`. Syncthing
+speiler `/Users/mayo/coop-møter/` fra Mac til denne mappen.
+
+`watcher.py` (~180 linjer):
+- Poll hver 30s. Robusthet: sjekker `.syncthing.<navn>.tmp`-ledsager
+  + krever mtime > 0.5s.
+- Parser meeting_local.py-format: `## 📝 Notater` → `user_notes`,
+  `## Transkript` → `transcript_text`, filnavn → `scheduled_at`.
+- POST `/meeting/import` med `X-DB-Token`:
+  `is_private=False`, `tags=["obs-bygg", "coop"]`, `title="Coop <stem>"`.
+- Suksess → `mv .processed/`, feil → `mv .failed/` (journal-logg).
+
+Systemd: `infra/systemd/mayo-coop-watcher.service`
+- After db-api + syncthing@mayo, Restart=on-failure.
+
+### Live-verifisert
+Test-fil med Kaja/Emilie/Jørn/Gard/Klarna:
+- Watcher parset OK · POST 200 · 3 action_items med ekte navn:
+  «Kontakte Jørn», «Følge opp med Gard», «Sende purring til Klarna».
+- `track='jobb'`, `area='obs_bygg'` (suverenitets-rail intakt).
+- Test-møtet slettet via DELETE /meeting/{id} etter verifisering.
+
+### 🟡 Krever Mayo-sudo for install
+```bash
+sudo cp /home/mayo/mayo-ai-os/infra/systemd/mayo-coop-watcher.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now mayo-coop-watcher
+```
++ Mac Syncthing: legg til `/home/mayo/coop-moter-inbound/` som ny delt
+mappe, peer med `/Users/mayo/coop-møter/`.
+
+## 🎯 Forrige (2026-06-30, planlegger — REVISJON) — Handover Tasks ↔ Reminders bytter til CalDAV-polling (`HANDOVER-TASKS-REMINDERS-SYNC-REBUILD.md`)
 
 > **Mayo (revisjon):** «vil ikke lage eget shortcut. vil bruke innebygde apple reminder til å opprette tasks i dagens liste som må synces til mayo os.»
 >
