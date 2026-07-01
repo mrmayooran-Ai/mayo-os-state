@@ -4,9 +4,49 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-07-01 09:40 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.59 Coop-møter: navn bevares på jobb-møter + Syncthing-auto-import bygget (`6992c6d`)
+**Sist oppdatert:** 2026-07-01 10:10 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.60 Tasks↔Reminders Fase 1 LEVERT (`cb08d9f`) — bi-direksjonell sync på item-tabellen, live-verifisert
 
-## 🎯 Nyeste (2026-07-01 09:40) — Coop-møter: navn bevares + auto-import via Syncthing (`6992c6d`)
+## 🎯 Nyeste (2026-07-01 10:10) — Tasks↔Reminders Fase 1 LEVERT (`cb08d9f`)
+
+**Trigger:** Mayo: «kjør Fase 1» — HANDOVER-TASKS-REMINDERS-SYNC-REBUILD.md.
+
+### Levert
+- **`modules/reminders/task_sync.py`** fullt omskrevet fra droppet
+  `crm_task` til `item`-tabellen. `enabled()` leser
+  `TASK_REMINDER_SYNC=1` (allerede satt i .env).
+- **`should_mirror_item()`** sentral suverenitets-vakt:
+  (1) `track='privat'` påkrevd · (2) `sensitive` blokkert (default) ·
+  (3) `source='reminder'` blokkert (ping-pong-vern)
+- **`apply_item_change(item_id)`** — inline-hook fra POST + PATCH:
+  first-run INSERTer reminder-rad med `icloud_uid=mayo-item-<uuid>`,
+  `source='local'`, `sync_state='pending_push'`; lenker
+  `item.reminder_id` → ny rad. Subsequent runs UPDATEer eksisterende.
+- **`apply_item_delete(reminder_id)`** — soft-delete → pending_delete
+  på reminder. Idempotent no-op uten link.
+- **`apply_reminder_change()`** retargetet til item, 3 idempotens-veier
+  (linked update / existing resurrekt / new INSERT).
+- **`delete_items_for_missing_reminders()`** soft-delete istedenfor hard-
+  delete (bevarer 60s-undo-mønsteret).
+- **`reconcile_once()`** JOIN item↔reminder på `reminder_id`.
+
+`db_api/item_module.py` — fire-and-forget hooks etter DB-commit i
+`create_item`, `patch_item`, `delete_item`. Lazy-import samme mønster
+som `_gcal_schedule_sync`. Blokkerer aldri API-svar; feiler stille i
+loggen.
+
+### Live-verifisert med curl-testrunde
+- POST `/items` (privat) → reminder-rad 36 opprettet · `item.reminder_id` lenket
+- PATCH state=done → `reminder.completed=t`, `completed_at` satt, `pending_push`
+- POST track=jobb → **0** reminder-rader (suverenitet OK)
+- POST area=ivf (sensitive=true, `MIRROR_SENSITIVE_ITEMS=0`) → **0** reminder-rader
+- DELETE item → `reminder.sync_state='pending_delete'`
+
+### 🟡 Config-sjekk før Fase 2
+`TASK_SYNC_LIST` er default `"Påminnelser ⚠️"` (matcher Mayos hoved-liste).
+Kan overstyres i `.env`. `MIRROR_SENSITIVE_ITEMS=0` (default nei — IVF/økonomi
+speiles ikke). Ingen endring nødvendig med mindre Mayo vil noe annet.
+
+## 🎯 Forrige (2026-07-01 09:40) — Coop-møter: navn bevares + auto-import via Syncthing (`6992c6d`)
 
 **Trigger:** Mayo: (a) «vil faktisk ha navnene vi nevner og avdelinger» —
 PERSON_1/PERSON_14 er tungvint å oversette for interne jobb-møter.

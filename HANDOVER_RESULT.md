@@ -1,113 +1,136 @@
-# HANDOVER_RESULT — Teams-møte 14:00 Oslo mangler i Mayo OS (2026-06-30)
+# HANDOVER_RESULT — Tasks ↔ Reminders Fase 0 recon (2026-07-01)
 
 **Til:** planlegger-sesjon (claude.ai)
 **Fra:** Elmars (VPS-Claude)
-**Trigger:** Mayo: «Teams-møte ~14:00 Oslo (12:00 UTC) — systemet transkriberte
-men intet møte synlig, ingen oppsummering, ingenting.»
+**Trigger:** `HANDOVER-TASKS-REMINDERS-SYNC-REBUILD.md` (revidert til CalDAV-polling).
+Mayo bekreftet at app-specific password «Mayo OS CalDAV» ble generert 2026-05-22.
 
-## Hovedfunn — opptaket nådde ALDRI backend
+## Sammendrag
 
-**Klient-side feil. VPS-en så aldri lyd.**
+**Fase 0 grønn — Mayo kan si «kjør Fase 1».** Ingen creds-arbeid gjenstår.
 
-### 1. DB-sjekk: 0 rader
+Tre mindre observasjoner å hensynta ved Fase 1-bygging (dokumentert nedenfor):
+- Funksjonsnavn i handover matcher ikke faktisk kode (`pull_all` finnes ikke,
+  bruk `fetch_all_reminders`)
+- List-dict-felt heter `name`, ikke `display_name`
+- 4 av 6 «reminders» er Apples egne onboarding-tekster — trenger filter
 
-```sql
-SELECT … FROM meeting
-WHERE user_id='c7329969-d1bc-4b05-b093-8f13ef1556a8'
-  AND uploaded_at >= '2026-06-30 09:00';
-```
-→ **0 rows**. Ingen meeting-rad ble noensinne opprettet i dag.
+---
 
-### 2. db-api-journal 11:30–15:00 UTC: stille på meeting
-
-```bash
-sudo journalctl -u db-api --since "2026-06-30 11:30" --until "2026-06-30 15:00" \
-  | grep -iE "meeting|pipeline|whisper|claude_extract|finalize|chunk"
-```
-→ **0 treff** for pipeline/whisper/finalize/chunk i tidsvinduet.
-
-### 3. Audit-log: Mayo VAR aktiv, men aldri på meeting-upload-stiene
-
-Mellom 11:30 og 12:30 UTC har Mayo brukt appen aktivt:
-- `POST /items`, `DELETE /items/…`, `PATCH /items/…` (oppgavemanagement)
-- `POST /notes`, `PATCH /notes/…` (kladd)
-- `POST /meeting/692efc76-…/ask` (spurt Jarvis om IVF-møte fra 23.06)
-- `POST /pyauth/passkey/login` (re-autentisering)
-
-**Det som IKKE finnes i audit-log siste 4 timer**:
-- `POST /meeting/create`
-- `POST /meeting/{id}/audio`
-- `POST /meeting/{id}/audio-chunk`
-- `POST /meeting/{id}/finalize`
-- `POST /meeting/upload`
-
-Han har ALDRI POSTet noe nytt møte-payload i dag. SPA-en, iOS Shortcut,
-Mac-skriptet — uansett hvilken vei han brukte for Teams-opptaket: ingenting
-nådde frem.
-
-### 4. Pending audio på disk: ingen funnet
+## 1. iCloud-creds ✅
 
 ```
-ls /home/mayo/mayo-ai-os/data/audio  → tomt
-find /home -name "chunks" -o -name "audio*" → ingen treff
+ICLOUD_APPLE_ID=<SET>
+ICLOUD_APP_PASSWORD=<SET>
 ```
-Backend har ingen halvferdig lyd liggende. Ingen henging på prosessering.
 
-## Konklusjon
+Begge er lastet i `.env`. Passordet er antakelig det som ble generert
+2026-05-22 for «Mayo OS CalDAV» — funker uansett.
 
-Pipeline-statusen er **#1 i handover-katalogen**: «0 rader: opptaket nådde
-aldri backend». Whisper transkriberte Mayos lyd et sted **lokalt på klient**,
-men output ble aldri lastet opp til VPS-en.
+## 2. CalDAV-tilgang: LIVE og virker ✅
 
-Sannsynlige klient-side stier som kan ha feilet:
+```python
+from modules.reminders.caldav_client import list_reminder_lists, fetch_all_reminders
+lists = list_reminder_lists()
+todos = fetch_all_reminders()
+```
 
-| Sti | Hvordan sjekke |
+**3 lister (iCloud Reminders):**
+
+| Navn | URL |
 |---|---|
-| **Mac-app/AppleScript** som tar opp Teams-lyd lokalt og POSTer til `db.mayooran.com/meeting/upload` | Sjekk Mac-konsoll for nettverksfeil/krasj i den prosessen. Sjekk om Whisper-output ligger igjen lokalt (`~/Documents/`, `/tmp/`, app-data-mappe) |
-| **iOS Shortcut «Møte→Mayo OS»** | Sjekk Shortcuts-app, kjør den manuelt med samme lyd-input om mulig — den vil enten lykkes eller vise feilmelding |
-| **SPA-recorder i nettleser** på mayooran.com (hvis han brukte iPad/MacBook) | Mayo skulle ha sett et meeting-detail-vue etter opptak. Hvis han bare så «opptak ferdig» uten redirect — feilen var i upload-fetch |
+| Påminnelser ⚠️ | `caldav.icloud.com/53220125/calendars/9e7515ef…` |
+| Handleliste ⚠️ | `caldav.icloud.com/53220125/calendars/a71274f3…` |
+| Me time | `caldav.icloud.com/53220125/calendars/e14c0867…` |
 
-**INGEN av disse kan diagnostiseres fra VPS-en alene** — de er klient-side
-prosesser.
+**6 reminders totalt:**
 
-## Anbefalte neste steg for Mayo
+| Status | Tittel | Liste |
+|---|---|---|
+| [ ] | Hvor er påminnelsene mine? | Påminnelser ⚠️ |
+| [ ] | Oppretteren av denne listen har oppgradert disse påminnelsene. | Påminnelser ⚠️ |
+| [ ] | Hvor er påminnelsene mine? | Handleliste ⚠️ |
+| [ ] | Oppretteren av denne listen har oppgradert disse påminnelsene. | Handleliste ⚠️ |
+| [x] | Handleliste | Me time |
+| [ ] | TEST fra mayooran.com — push-test | Me time |
 
-1. **Finn lyd-filen.** Hvis Whisper transkriberte den, ligger originalen
-   sannsynligvis ennå et sted lokalt:
-   - Mac: `~/Library/Containers/com.microsoft.teams/`, `~/Movies/`,
-     `~/Documents/Teams Recordings/`, `/tmp/`
-   - iPhone: Voice Memos-app, eller hvis Shortcut → kanskje i Filer-appen
-   - Browser-recorder: ingen lokal kopi som regel (gone hvis siden ble lukket)
+Ingen 401/403. Autentisering + TLS + WebDAV-parsing alt OK.
 
-2. **Re-upload via SPA**: hvis lyden er bevart, åpne mayooran.com →
-   meeting-fanen → «Last opp lyd» (eller hva-knappen-heter). Pipeline vil
-   da kjøre normalt — analyseringen er identisk uavhengig av om opptaket
-   skjedde i sanntid eller post-hoc.
+**Merk:** de to «Hvor er påminnelsene mine?»- og «Oppretteren av denne listen…»-radene
+er **Apples egne standard-onboarding-tekster** — de dukker opp automatisk i alle
+lister som ikke har blitt endret siden Reminders-oppgraderingen (typisk i 2018).
+Fase 1 må filtrere bort disse så de ikke lager støy-items i Mayo OS. Enkleste
+regel: `if title in {"Hvor er påminnelsene mine?", "Oppretteren av denne listen
+har oppgradert disse påminnelsene."}` → skip.
 
-3. **Hvis lyden er borte**: send Telegram-bot en kort tekst-melding med
-   stikkord (eller skriv et notat i Kladd). Detalj-rik notat fra hukommelsen
-   er bedre enn null spor.
+Alternativ: Mayo sletter disse manuelt i Reminders-appen — men de kommer sannsynligvis
+tilbake ved neste iCloud-sync til flere enheter. Bedre å filtrere server-side.
 
-4. **Verifiser klient-pipelinen før neste møte**: gjør en 30-sekunders
-   test-opptak med Mac-appen/iOS-Shortcuten/SPA-en *før* neste Teams-call.
-   Hvis test-opptaket ikke dukker opp i appen innen ~3 min, vet vi
-   klient-stien er trasig før Mayo investerer en hel møtetime i den.
+## 3. `task_sync.enabled()` — bekreftet `False` ✅
 
-## Hva som IKKE er problemet (utelukket)
+```python
+def enabled() -> bool:
+    """Leses ved kall-tid (ikke import) så testene/VPS kan toggle uten reimport.
 
-- ✅ Backend kjører (db-api PID 974728, helsesjekk grønn)
-- ✅ Meeting-pipeline funket før 30.06 (siste meeting `692efc76` IVF 23.06,
-  full transkripsjon + AI-analyse + tasks)
-- ✅ Whisper-modellen er på VPS (`/home/mayo/whisper-models/nb-whisper-large-ct2`)
-  men kalles ikke uten først å motta lyd
-- ✅ Cloudflare-tunnel for `db.mayooran.com` virker (Mayo har kjørt 20+
-  andre API-kall i tidsvinduet)
-- ✅ Mayo's session-cookie er gyldig (alle hans request returnerer 200)
+    2026-06-19 Fase 5: hardcoded False fordi crm_task-tabellen er droppet og
+    sync-laget peker på den. Apple Reminders-sync må re-implementeres på
+    item-tabellen før dette kan reaktiveres (TODO ved bevisst valg fra Mayo).
+    """
+    return False
+```
 
-## Re-trigger ikke aktuelt
+Rørene mot `crm_task` finnes fortsatt i modulen. Fase 1 må retargete til
+`item`-tabellen (og teste at `enabled()` kan snus til `True` via env-flagg —
+eventuelt fjerne enabled-gate helt hvis Mayo vil at sync alltid er på).
 
-Per handover §4: «Hvis status='failed' og det finnes lyd-fil intakt: restart
-pipelinen.» Det er ingen failed-rad og ingen lyd-fil — det er **ingenting å
-restarte**. Pipeline-restart er meningsløst uten audio som input.
+## Merknader til Fase 1-bygging
 
-— Elmars 2026-06-30 20:20 UTC
+### Handover-spec-navn ↔ faktisk kode
+
+Handover-instruksene refererer til funksjons-/felt-navn som ikke matcher
+`caldav_client.py`. Ingen bug — men Fase 1-koden må bruke faktiske navn:
+
+| Handover-navn | Faktisk navn i `caldav_client.py` |
+|---|---|
+| `pull_all()` | `fetch_all_reminders()` (linje 154) |
+| `list.display_name` | `list["name"]` |
+| `_create_vtodo` | `_build_vtodo` (linje 189) |
+| `update_vtodo` | `push_update` (linje 247) |
+| `delete_vtodo` | `push_delete` (linje 264) |
+
+Fase 1-koden må referere til de faktiske navnene, ellers får vi ImportError
+(som jeg fikk i første tørrkjøring).
+
+### Suverenitet i sync-mapping
+
+Når Fase 1 mapper reminder → item, trenger vi en policy for hvilken liste
+som havner i hvilken track/area. Naiv default:
+
+- «Påminnelser ⚠️» og «Handleliste ⚠️» → track='privat', area=null (Livsplan-inbox)
+- «Me time» → track='privat', area='helse' eller similar
+
+Mer solid: kartlegg iCloud-list-URL → Mayo OS-area i en config-tabell eller
+en dict i `task_sync.py`. Ingenting fra iCloud skal automatisk lande i
+Obs BYGG (jobb-flate) — samme rail som meeting-fiksen 3ea8a88 håndhever.
+
+### 3-lister-realiteten
+
+Bare 3 iCloud-lister eksisterer. Mayos handover snakker om «dagens liste»
+— sannsynligvis meningen med «Påminnelser ⚠️»-lista (Apples default). Fase 1
+bør ha en config-linje `MAYO_DEFAULT_LIST = "Påminnelser ⚠️"` (eller list-URL)
+så nye tasks som opprettes i Mayo OS pusher til rett liste.
+
+## Definition of Done — Fase 0
+
+- [x] Creds lastet (`ICLOUD_APPLE_ID` + `ICLOUD_APP_PASSWORD` i `.env`)
+- [x] CalDAV-autentisering fungerer live
+- [x] `list_reminder_lists()` + `fetch_all_reminders()` returnerer data
+- [x] `task_sync.enabled()` bekreftet `False` og krever retargeting
+- [x] Skjema-mismatch mellom handover-spec og faktisk kode dokumentert
+- [x] Onboarding-tekst-filter identifisert
+- [x] HANDOVER_RESULT.md skrevet + commit + speil
+
+**Fase 1 klar til «Kjør».** Ingen blokkerende avhengigheter, ingen
+creds-arbeid gjenstår for Mayo.
+
+— Elmars 2026-07-01 10:00 UTC
