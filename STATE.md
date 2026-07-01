@@ -4,9 +4,31 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-07-01 11:55 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.66 Subtask-glitch fikset (FE `b7ef35e`) + inbox-cleanup runde 2 (BE `63e4a7f`)
+**Sist oppdatert:** 2026-07-01 12:10 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.67 Subtask-glitch fikset PÅ BÅDE mobil + desktop (`b7ef35e` + `e212e15`)
 
-## 🎯 Nyeste (2026-07-01 11:55) — Subtask «task-i-en-task» glitch fikset (FE `b7ef35e`)
+## 🎯 Nyeste (2026-07-01 12:10) — Subtask-glitch: desktop trengte egen fix (`e212e15`)
+
+**Trigger:** Mayo etter mobil-fix `b7ef35e`: «testet på desktop virker ikke»
+
+### Rotårsak (desktop-spesifikk)
+`desktop.jsx::openItem` var **synkron** og fetchet aldri backend:
+```js
+openItem: (id) => { const it = items.find(x => x.id === id) || ITEMS.find(x => x.id === id); setDetail({ kind: 'item', item: it }); }
+```
+`items`-arrayet fra `loadItems`-mapping inneholder ikke `subtasks`-feltet
+(bare via `GET /items/{id}`), så `ItemDetail.live.subtasks` = tom.
+
+### Fix
+Speilet mobil-mønsteret (`app.jsx::openItem` fra b7ef35e) inn i desktop:
+- Gjør `openItem` async
+- Bruker `apiGet('/api/db/items/{id}')` for ekte UUID-er
+- Erstatter parent-rad i `items` med full-detail inkl. subtasks-array
+- Legger til subtask-rader som separate items med `parent_id`
+
+Nå har begge flater identisk oppførsel. Import: `apiGet` fra `@/lib/api`
+(samme mønster som `resolveApiUrl`).
+
+## 🎯 Forrige (2026-07-01 11:55) — Subtask «task-i-en-task» glitch fikset PÅ MOBIL (FE `b7ef35e`)
 
 **Trigger:** Mayo: «under task i en task i livsplanlegger funker ikke.
 det jeg mener er at det glitcher jeg får ikke laget en task i en task.»
