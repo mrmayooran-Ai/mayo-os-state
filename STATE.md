@@ -4,9 +4,105 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-07-01 10:10 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.60 Tasks↔Reminders Fase 1 LEVERT (`cb08d9f`) — bi-direksjonell sync på item-tabellen, live-verifisert
+**Sist oppdatert:** 2026-07-01 10:32 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.64 Tasks↔Reminders Fase 2 LEVERT (`3f32942`) — poll-loop live, full CRUD E2E grønn
 
-## 🎯 Nyeste (2026-07-01 10:10) — Tasks↔Reminders Fase 1 LEVERT (`cb08d9f`)
+## 🎯 Nyeste (2026-07-01 10:32) — Tasks↔Reminders Fase 2 LEVERT (`3f32942`)
+
+**Trigger:** Mayo: «kjør Fase 2» — HANDOVER-TASKS-REMINDERS-SYNC-REBUILD.md.
+
+Poll-loop var allerede bygget (`_reminders_sync_loop()` i `server.py`,
+60s interval, gated på `CALDAV_SYNC_ENABLED=1`). Fase 2 la til den
+manglende **reminder → item-speilingen** samt fikset tre iCloud-CalDAV-
+quirks som stod i veien.
+
+### Levert
+- `modules/reminders/sync.py::mirror_reminders_to_items()` — kalles etter
+  pull. Kjører `task_sync.apply_reminder_change(bypass_scope=True)` for
+  hver `synced` reminder som ligger i whitelist og ikke er en Apple-
+  onboarding-tekst. `_APPLE_ONBOARDING_TITLES`-filter fjerner de 4
+  systemtekstene som kommer tilbake ved re-sync uansett.
+  `_sync_list_whitelist()` parser `ICLOUD_SYNC_LISTS`. `push_pending`
+  sin `pending_delete`-vei nå idempotent.
+- `modules/reminders/task_sync.py::apply_reminder_change` fikk
+  `bypass_scope`-param for å tillate flerlist-whitelist i Fase 2 uten å
+  bryte single-list-vakten (`TASK_SYNC_LIST`) for bulk-sync-veien.
+- `modules/reminders/caldav_client.py` — tre kritiske iCloud-fikser:
+  1. `_cal_matches()` bruker `get_display_name()` (matcher emoji-navn),
+     ikke `cal.name` (URL-slug).
+  2. `_find_todo_by_uid()` **itererer** `get_todos()` istedenfor
+     `get_todo_by_uid()`. iCloud har kjent bug hvor REPORT-query gir
+     `412 Precondition Failed`.
+  3. `push_delete` idempotent — True hvis VTODO ikke finnes.
+
+### Full E2E live-verifisert
+| Steg | Resultat |
+|---|---|
+| **CREATE** item privat | `pushed=1`, VTODO i «Påminnelser ⚠️» |
+| **PATCH** state=done | `pushed=1`, `reminder.completed=t` |
+| **DELETE** item | `deleted=1`, VTODO borte fra iCloud |
+| Onboarding-filter | 4 av 6 Apple-reminders filtrert bort |
+| Mirror | 3 ekte reminders speilet, 0 lekkasje |
+
+### 🔴 Suverenitets-rail intakt
+- `track='jobb'` → 0 reminders (Fase 1)
+- `sensitive=true` + `MIRROR_SENSITIVE_ITEMS=0` → 0 reminders
+- Ping-pong: `source='reminder'` speiles ikke tilbake
+
+### Aktivering (allerede live i .env)
+```
+CALDAV_SYNC_ENABLED=1
+TASK_REMINDER_SYNC=1
+TASK_SYNC_LIST=Påminnelser ⚠️
+```
+
+Poll-loop kjører automatisk hvert 60 sek. Mayo lager reminder i Apple
+Reminders eller task i Mayo OS → sync innen 60–120s.
+
+## 🚨 Forrige (2026-07-01, planlegger) — URGENT: verifiser eller rull tilbake FE-fikser (`HANDOVER-LIVSPLAN-CLEANUP-URGENT.md`)
+
+> **Mayo:** «rydd opp! nå er jeg oppgitt. nå kommer denne meldingen opp når jeg oppretter undertasks. samt masse mock up og obs bygg oppgaver ligger i privat delen … stram deg sammen og om du ikke kan fikse gi handover til vps elmars.»
+>
+> **Planlegger erkjenner:** 4 FE-fikser pushet i dag (`b38ae63`, `16ceb54`, `334cf08`, `82cb4bb`) skulle vært spec-et med Elmars-verifisering på VPS-side. Går taktisk i stedet for strukturelt (jf. sovereignty-scope-invariant-handoveren) var feil valg gitt Mayos tap-skrekk-hyppighet i dag.
+>
+> **Umiddelbar handling:** fjernet støyende «uventet id-format»-toast fra `16ceb54` (nå `82cb4bb`). Ellers stopper planlegger å pushe FE.
+>
+> **Handover ber Elmars om:** (1) diagnose via SQL av Mayos faktiske inbox-tilstand, (2) enten utvide FE-vakter positivt (whitelist `track === 'privat'`) eller (3) rulle tilbake alle 4 mine commits og skrive én ren fiks basert på diagnosen. Detaljert diagnostisk plan i handoveren.
+>
+> **Ingen flere FE-pushes fra planlegger i dag** — Mayo fortjener én skikkelig fiks etter diagnose, ikke en femte ad-hoc-lapp.
+
+## 🎯 Forrige (2026-07-01, planlegger) — Mock-ITEMS zombie-fiks (FE `334cf08`)
+
+## 🎯 Nyeste (2026-07-01, planlegger) — Mock-oppgaver zombie-resurrection ved hver deploy (FE `334cf08`)
+
+> **Mayo:** «hver gang du eller elmars pusher ut endringer så kommer gamle slettede og fullførte oppgaver tilbake. som planlegg helgetur med familien osv»
+>
+> **Rotårsak:** to steder i `app.jsx` seedet items-lista fra `data.js`'s ITEMS-fixture:
+> 1. `useState`-init (linje 387): `useState(ITEMS.filter(...))` la mocks inn ved HVER SPA-mount.
+> 2. `loadItems()`-success (linje 461): `setItems(prev => [...mappedItems, ...mappedTasks, ...prev.filter(p => !p.real ...)])` beholdt mock-radene sammen med de ekte etter vellykket fetch.
+>
+> Så hver deploy → auto-reload → useState laster mock → loadItems fyller på med ekte items OG beholder mock. Mayos slettede/fullførte mock-oppgaver kom evig tilbake. «Planlegg helgetur med familien» ligger bokstavelig talt i `data.js:68`.
+>
+> **Fiks (`334cf08`, `src/mobile/livsplan_v12/app.jsx`):**
+> 1. useState-init: `useState(IS_DEMO ? ITEMS.filter(...) : [])` — mocks vises kun i demo-modus. I prod starter Mayo på tom liste, `loadItems()` fyller med ekte.
+> 2. loadItems success: `setItems([...mappedItems, ...mappedTasks])` — replace, ikke merge. Mock overlever kun ved fetch-feil (catch-grenen).
+>
+> **Effekt:** slettede/fullførte ekte items forblir slettede/fullførte (backend er sannhet). Mock-fixture er død for Mayo i prod.
+>
+> Auto-deploy ~2 min. Første refresh etter deploy: oppgaver som «Planlegg helgetur», «Ringe rørlegger», «Se på Vipps-faktura» etc. forsvinner fra listen.
+
+## 🎯 Forrige (2026-07-01, planlegger) — Subtask stumping-bug fix (FE `16ceb54`)
+
+> **Mayo (skjermbilde):** «i tasks får jeg ikke laget undertasks. selv om jeg skriver i undertasks og enter funker det ikke eller trykker på + knapp». Detail-arket for en privat IVF-behandlingsplan-oppgave — input og +-knapp synlig, men INGENTING skjer.
+>
+> **Rotårsak:** items kartlagt fra `/tasks/unified` har prefiksede id-er (`meeting:<uuid>`, `reminders:<uuid>`). Alle 4 FE-guard-sjekker i `item.jsx` testet mot `/^[0-9a-fA-F-]{36}$/` (36-tegn UUID med hyphens). Prefix sprenger totallen → regex feiler → API-kall hoppes over stille. Ingen error, ingen toast — no-op.
+>
+> **Skjult skade:** rammet ikke bare undertasks. `patch()` (autosave av tittel/notat/mood/tags/etc), `addSubInLane` (kanban-variant) og ALLE skrive-operasjoner på prefiksede items ble stille droppet. Mayos redigeringer forsvant.
+>
+> **Fiks (`16ceb54`, `src/mobile/livsplan_v12/item.jsx`):** ny `realId()`-helper stripper prefix ved siste `:` og validerer UUID. Brukt i patch, addSub, addSubInLane. deleteSub/patchSub/toggleSub var uendret siden de opererer på subtask-sids (rene UUID fra server). Bonus: null realId → ærlig toast «Kan ikke lagre undertask (uventet id-format)» i stedet for silent no-op (CLAUDE.md «aldri lyv om lagring»).
+>
+> Auto-deploy ~2 min. Mayo refresher detalj-arket → subtasks kan legges til, tittel/notat-edits persisteres.
+
+## 🎯 Forrige (2026-07-01 10:10, Elmars) — Tasks↔Reminders Fase 1 LEVERT (`cb08d9f`)
 
 **Trigger:** Mayo: «kjør Fase 1» — HANDOVER-TASKS-REMINDERS-SYNC-REBUILD.md.
 
