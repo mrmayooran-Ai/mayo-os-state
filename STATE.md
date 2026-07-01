@@ -4,9 +4,73 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-06-30 · **Av:** planlegger (claude.ai) · **Versjon:** v0.55 Sovereignty-hull fikset: meeting/voice-journal items lekket inn i Livsplan-inbox
+**Sist oppdatert:** 2026-06-30 · **Av:** planlegger (claude.ai) · **Versjon:** v0.57 Sovereignty-scope-invariant handover skrevet (etter Mayos 4. tap-skrekk)
 
-## 🚨 KRITISK FIKS (2026-06-30, planlegger) — Meeting-items lekket inn i Livsplan-inbox (FE `b38ae63`)
+## 🎯 Nyeste (2026-06-30, planlegger) — Handover for arkitektur-fiks: `?scope=`-invariant på server (`HANDOVER-SOVEREIGNTY-SCOPE-INVARIANT.md`)
+
+> **Trigger:** Mayo etter 4. tap-skrekk på én dag: «forklar hvorfor dette skjer. vi fikser jo dette?». Hard refresh løste ikke det Mayo ser i Livsplan-inbox etter min FE-fiks `b38ae63`. Planlegger tok ansvar for at symptomlapping har vært mønsteret hele dagen — 4 FE-filtre lagt til, hver som svar på en oppdaget lekkasje, ingen som håndhevet invariant ved kilden.
+>
+> **Arkitektur-endring foreslått:** avvikle sovereignty-som-FE-filter-lister. Innfør `?scope=privat|jobb|all` som obligatorisk parameter på `/items` og `/tasks/unified`. Server serverer kun rader som matcher scope — FE-filtre blir belt+suspenders redundans, ikke primær forsvar. Én sovereignty-clause per endepunkt i BE, ikke tre `.filter()`-calls per side per fane i FE.
+>
+> **Erkjennelse av Elmars' pågående arbeid (etter jeg skrev handoveren, `03c9167`+`3ea8a88`+`5b3d559`):** Elmars leverte allerede mye av det jeg spec-et: (1) `_insert_action_items` bruker nå `meeting.is_private` som truth-source for track (rotårsak av Mayos klage fjernet); (2) smoke #28 kryss-feed-vakt (53+99+42 rader vaktet, grønn); (3) runner online → planlegger kan trigge BE-deploys via API. **Kritisk audit-innsikt fra Elmars:** min opprinnelig planlagte backfill-SQL «UPDATE … track='jobb' WHERE source='meeting'» ville flyttet privat IVF-data til jobb. Grunnlov §3 reddet det.
+>
+> **Handover-delta (dette som fortsatt gjenstår):** `?scope=`-parameter (server-side query-filter, ikke bare validering), FE-forenkling til å bruke scope, NOT NULL-constraint på `item.track`, og 5 faser med STOP-gates.
+>
+> **🔴 Fase 0 prioritet:** finn ut hva Mayo FAKTISK ser i Livsplan-inbox nå. Elmars' audit fant 0 aktive lekkasjer, men Mayo ser fortsatt items etter hard refresh. Én av tre: misidentifikasjon (private IVF med «fra møte»-label ser ut som Obs BYGG), stale FE-state, eller fjerde data-vei ingen fanget. Kartlegg FØR Fase 1 bygges.
+
+## 🎯 Forrige (2026-06-30 20:15, Elmars) — Akutt-handover §1-4
+
+**Trigger:** Mayos akutt-pakke (4 punkter, alle parallelle).
+
+### #1 — `/scan/test-ocr` deployet ✅
+- Pull-fast-forward + `./deploy.sh`. HEAD = `03c9167`.
+- Endepunkt verifisert: `POST /scan/test-ocr` returnerer 401 (auth-gated)
+  uten cookie, IKKE 404. Mayo kan teste fra iPhone på
+  https://mayooran.com/scan-test (har mayo_session-cookie).
+
+### #2 — BE-side suverenitets-rail på meeting action-items (`3ea8a88`)
+**Diagnose-overraskelse:** 11 source='meeting'-items hadde track != 'jobb',
+men ALLE 11 var korrekt private IVF (track='privat', area='ivf').
+**0 active leak** fra obs-bygg-møter. Handover-SQL «UPDATE … track='jobb'»
+ville flyttet privat IVF-data til jobb — kritisk å diagnostisere først.
+
+**Backfill IKKE kjørt** (eksisterende data rent).
+
+**Fiks fremover** i `db_api/meeting_module.py::_insert_action_items` (linje
+485+): meeting.is_private er nå **sannhetskilden** for track, ikke Claudes
+area-tildeling.
+- Tidligere: `track = AREA_TRACK.get(ai_area, default_track)` →
+  Claude's area-suggestion overstyrte → obs-bygg-task med area='mayo_os'
+  fikk track='privat' → lekkasje til Livsplan-inbox (Mayos klage).
+- Nå: `track = default_track` ALLTID (basert på meeting.is_private).
+  Mismatch logges INFO. Hvis obs-bygg-møte foreslår privat-area:
+  override `ai_area = 'obs_bygg'` så hverken track eller area lekker.
+
+### #3 — Smoke #28 sovereignty-consistency (`5b3d559`) ✅
+Tre-feed kryss-vakt:
+- (A) `/items` rådata: source='meeting'/'voice-journal' MÅ ha track som
+  matcher meeting.is_private (krysssjekker mot
+  `/meeting?include_private=true`)
+- (B) `/tasks/unified`: is_private=true MÅ aldri ha url=/obs-bygg/*;
+  divergens mellom rådata.track og unified.is_private flagges
+- (C) `/action-items`-aggregat: ingen privat-merket item lekker hit
+
+Grønn isolert: 53 meeting/voice-items + 99 unified + 42 action-items,
+ingen kryss-feed-leak.
+
+### #4 — GitHub Actions BE-runner LIVE ✅
+- Mayo kjørte `sudo systemctl start ...` 2026-06-30 20:15:32 UTC
+- Status: **active (running)** siden 22s etter start (PID 977608, 140 MB).
+- Allerede `enabled` — overlever reboot.
+- Planlegger kan nå trigge backend-deploys via GitHub API uten å mate
+  Mayo lenker. FE-runneren (mayo-vps-frontend) er også `active running`.
+
+### ⏸ Parkert (per handover §5)
+- §3 fra forrige handover: smoke #27 Kladd-toolbar (12c168f + 0bb9b43)
+- §4a fra forrige: Strava watcher rate-limit (*/5 → */15 + 429-backoff)
+- scan_ingest Fase 2 — venter Mayos «Kjør» etter telefon-OCR-test
+
+## 🚨 Forrige (2026-06-30, planlegger) — Meeting-items lekket inn i Livsplan-inbox (FE `b38ae63`)
 
 > **Mayo (tap-skrekk #3 på samme dag):** «Faen ass… har masse obs bygg møte oppgaver i innbox. Hvorfor skjer dette? Kjønner du jeg mister tillit. Kan du rydde opp?»
 >
