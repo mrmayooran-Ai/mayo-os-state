@@ -4,7 +4,21 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-07-01 · **Av:** planlegger (claude.ai) · **Versjon:** v0.62 Mock-ITEMS zombie-fiks (FE `334cf08`) — «Planlegg helgetur» kommer ikke tilbake ved deploy
+**Sist oppdatert:** 2026-07-01 · **Av:** planlegger (claude.ai) · **Versjon:** v0.63 URGENT-handover til Elmars — Mayo ser fortsatt zombies + Livsplan-mocks; planlegger stopper å pushe FE-fikser
+
+## 🚨 URGENT (2026-07-01, planlegger) — Handover til Elmars: verifiser eller rull tilbake mine FE-fikser (`HANDOVER-LIVSPLAN-CLEANUP-URGENT.md`)
+
+> **Mayo:** «rydd opp! nå er jeg oppgitt. nå kommer denne meldingen opp når jeg oppretter undertasks. samt masse mock up og obs bygg oppgaver ligger i privat delen … stram deg sammen og om du ikke kan fikse gi handover til vps elmars.»
+>
+> **Planlegger erkjenner:** 4 FE-fikser pushet i dag (`b38ae63`, `16ceb54`, `334cf08`, `82cb4bb`) skulle vært spec-et med Elmars-verifisering på VPS-side. Går taktisk i stedet for strukturelt (jf. sovereignty-scope-invariant-handoveren) var feil valg gitt Mayos tap-skrekk-hyppighet i dag.
+>
+> **Umiddelbar handling:** fjernet støyende «uventet id-format»-toast fra `16ceb54` (nå `82cb4bb`). Ellers stopper planlegger å pushe FE.
+>
+> **Handover ber Elmars om:** (1) diagnose via SQL av Mayos faktiske inbox-tilstand, (2) enten utvide FE-vakter positivt (whitelist `track === 'privat'`) eller (3) rulle tilbake alle 4 mine commits og skrive én ren fiks basert på diagnosen. Detaljert diagnostisk plan i handoveren.
+>
+> **Ingen flere FE-pushes fra planlegger i dag** — Mayo fortjener én skikkelig fiks etter diagnose, ikke en femte ad-hoc-lapp.
+
+## 🎯 Forrige (2026-07-01, planlegger) — Mock-ITEMS zombie-fiks (FE `334cf08`)
 
 ## 🎯 Nyeste (2026-07-01, planlegger) — Mock-oppgaver zombie-resurrection ved hver deploy (FE `334cf08`)
 
