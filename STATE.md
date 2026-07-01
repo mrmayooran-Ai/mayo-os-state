@@ -4,9 +4,50 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-07-01 13:15 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.69 Alle sub-mutasjoner bruker `_upsertSubs` (`b5a6efc`)
+**Sist oppdatert:** 2026-07-01 13:45 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.70 Obs-BYGG-lekkasje stengt: `/tasks/unified?track=privat` (`fd71b7d` + FE `662b546`)
 
-## 🎯 Nyeste (2026-07-01 13:15) — toggleSub/patchSub/deleteSub → `_upsertSubs` (`b5a6efc`)
+## 🎯 Nyeste (2026-07-01 13:45) — Obs BYGG-tasks lekket til Livsplan/Tasks (`fd71b7d` + `662b546`)
+
+**Trigger:** Mayo: «det ligger masse obs bygg oppgaver fra møter i
+livsplanlegger. det skal ikke skje. rydd opp og sørg for at det aldri skjer»
+
+### Diagnose
+`GET /tasks/unified?status=open&limit=300` returnerte 83 items, hvorav
+49 var jobb-meeting-actions (Klarna, Øyvind, Gard, Jørn, cookieless-
+tracking, budsjettsituasjonen, kampanjeend, purringer). Alle med
+`source='meeting'`, `track='jobb'`, mange med `area='obs_bygg'`.
+
+Kilden er `meeting_module._insert_action_items` — den setter `state='inbox'`
+på alle action_items. Livsplan (mobil `app.jsx` + desktop `desktop.jsx`)
+filtrerte allerede meeting/jobb ut på FE, men **PageTasks.jsx** (privat
+task-fane) leste unified UTEN filter → hele Obs BYGG-oppgavelista lakk
+inn i det som skal være privat-only-fanen.
+
+### Fix (5-lags defense-in-depth)
+1. **Backend** `/tasks/unified` støtter nå `?track=privat|jobb`.
+   - `privat` → SQL: `COALESCE(track,'privat')='privat' AND COALESCE(area,'')<>'obs_bygg'`
+   - `jobb`   → SQL: `track='jobb'`
+   - `None`  → alle (backward-compat for CommandPalette + gamle callers)
+2. **PageTasks.jsx** → `?track=privat`
+3. **app.jsx** (Livsplan mobil) → `?track=privat` (backend-guard)
+4. **desktop.jsx** (Livsplan desktop) → `?track=privat` + speilet
+   source-vakt fra `app.jsx` (`source !== 'meeting'` / `!== 'voice-journal'`)
+5. **PageObs.jsx** (Obs BYGG-flaten) → `?track=jobb` (rett kilde)
+
+### Verifisering
+Curl:
+- `?track=privat` → 34 items, 0 jobb-meeting ✅
+- `?track=jobb`   → 49 items, alle track=jobb ✅
+- uten track      → 83 items (backward-compat OK)
+
+Playwright (desktop + mobil × `/tasks`, `/livsplan`, `/livsplan?tab=triage`):
+alle 6 kombinasjoner: `found: []` — 0 jobb-meeting-nøkkelord i DOM. ✅
+
+### Ingen DB-sletting
+De 49 items er reelle handlingspunkter fra jobb-møter og hører hjemme
+i Obs BYGG-flaten. Filter er riktig løsning, ikke sletting.
+
+## 🎯 Forrige (2026-07-01 13:15) — toggleSub/patchSub/deleteSub → `_upsertSubs` (`b5a6efc`)
 
 **Trigger:** Mayo etter d9f6baa: «fiks deleteSub og toggleSub også»
 
