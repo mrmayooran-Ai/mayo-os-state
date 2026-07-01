@@ -4,9 +4,27 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-07-01 · **Av:** planlegger (claude.ai) · **Versjon:** v0.61 Subtask stumping-bug fix (FE `16ceb54`) — realId() stripper prefix på items fra /tasks/unified
+**Sist oppdatert:** 2026-07-01 · **Av:** planlegger (claude.ai) · **Versjon:** v0.62 Mock-ITEMS zombie-fiks (FE `334cf08`) — «Planlegg helgetur» kommer ikke tilbake ved deploy
 
-## 🎯 Nyeste (2026-07-01, planlegger) — ItemDetail: skjult skrive-tap på prefiksede items (FE `16ceb54`)
+## 🎯 Nyeste (2026-07-01, planlegger) — Mock-oppgaver zombie-resurrection ved hver deploy (FE `334cf08`)
+
+> **Mayo:** «hver gang du eller elmars pusher ut endringer så kommer gamle slettede og fullførte oppgaver tilbake. som planlegg helgetur med familien osv»
+>
+> **Rotårsak:** to steder i `app.jsx` seedet items-lista fra `data.js`'s ITEMS-fixture:
+> 1. `useState`-init (linje 387): `useState(ITEMS.filter(...))` la mocks inn ved HVER SPA-mount.
+> 2. `loadItems()`-success (linje 461): `setItems(prev => [...mappedItems, ...mappedTasks, ...prev.filter(p => !p.real ...)])` beholdt mock-radene sammen med de ekte etter vellykket fetch.
+>
+> Så hver deploy → auto-reload → useState laster mock → loadItems fyller på med ekte items OG beholder mock. Mayos slettede/fullførte mock-oppgaver kom evig tilbake. «Planlegg helgetur med familien» ligger bokstavelig talt i `data.js:68`.
+>
+> **Fiks (`334cf08`, `src/mobile/livsplan_v12/app.jsx`):**
+> 1. useState-init: `useState(IS_DEMO ? ITEMS.filter(...) : [])` — mocks vises kun i demo-modus. I prod starter Mayo på tom liste, `loadItems()` fyller med ekte.
+> 2. loadItems success: `setItems([...mappedItems, ...mappedTasks])` — replace, ikke merge. Mock overlever kun ved fetch-feil (catch-grenen).
+>
+> **Effekt:** slettede/fullførte ekte items forblir slettede/fullførte (backend er sannhet). Mock-fixture er død for Mayo i prod.
+>
+> Auto-deploy ~2 min. Første refresh etter deploy: oppgaver som «Planlegg helgetur», «Ringe rørlegger», «Se på Vipps-faktura» etc. forsvinner fra listen.
+
+## 🎯 Forrige (2026-07-01, planlegger) — Subtask stumping-bug fix (FE `16ceb54`)
 
 > **Mayo (skjermbilde):** «i tasks får jeg ikke laget undertasks. selv om jeg skriver i undertasks og enter funker det ikke eller trykker på + knapp». Detail-arket for en privat IVF-behandlingsplan-oppgave — input og +-knapp synlig, men INGENTING skjer.
 >
