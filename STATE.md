@@ -4,9 +4,37 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-07-01 14:35 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.72 Utvidet jobb-guard + defense-in-depth (`633c615` + FE `5efb339`)
+**Sist oppdatert:** 2026-07-01 21:35 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.73 Undertasks får parent-notat i Google Calendar (`bbf3032`)
 
-## 🎯 Nyeste (2026-07-01 14:35) — Jarvis-klonet 18 jobb-tasks som privat (`633c615` + `5efb339`)
+## 🎯 Nyeste (2026-07-01 21:35) — Gcal-sync: parent-referanse for undertasks (`bbf3032`)
+
+**Trigger:** Mayo: «undertasks eller hoved tasks, så lenge de har
+forfallsdato må de opprettes i den datoen i google kalender. samt
+undertasks skal ha notat i oppføring som viser til hoved oppgaven».
+
+**Status før:** Første krav var allerede oppfylt — `reconcile_once`
+filtrerer ikke på `parent_id`, så alt med `due_at`/`scheduled_at` synces
+(heldags på forfallsdato, `pick_dt` foretrekker scheduled_at). Men
+Google-oppføringen for en undertask viste ingen kobling til parent.
+
+**Endring (`modules/calendar/gcal_sync.py`):**
+- `_ITEM_COLS` + `parent_id`; `sync_item` henter parent-tittel når satt
+- `description_for` legger til `↳ Deloppgave av: <parent-tittel>` +
+  deep-link `#item=<parent-uuid>` (før body_md)
+
+**Tester:** 3 nye i `tests/test_gcal_sync.py` → 27/27 PASS.
+
+**Verifisert ende-til-ende (live):** opprettet test-parent + undertask
+med due_at 2026-07-03 via API → hook syncet → Google-event lå som
+heldags 3. juli med parent-notat + begge deep-links i description.
+Test-items soft-deletet; sweep fjernet eventet etter 60s undo-vindu.
+
+**Backfill:** ingen eksisterende undertasks hadde dato → ingen re-sync
+nødvendig. Notatet slår inn automatisk framover.
+
+---
+
+## 🎯 (2026-07-01 14:35) — Jarvis-klonet 18 jobb-tasks som privat (`633c615` + `5efb339`)
 
 **Trigger:** Mayo: «sjekk andre steder mock-data kan lekke inn og det ligger
 forsatt mock data og obs bygg jobb relaterte oppgaver i private
