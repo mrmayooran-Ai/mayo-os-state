@@ -4,9 +4,37 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-07-01 13:45 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.70 Obs-BYGG-lekkasje stengt: `/tasks/unified?track=privat` (`fd71b7d` + FE `662b546`)
+**Sist oppdatert:** 2026-07-01 14:05 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.71 Mock-ITEMS-lekkasje til desktop stengt (`dc93ed1`) + Jarvis-brief audit
 
-## 🎯 Nyeste (2026-07-01 13:45) — Obs BYGG-tasks lekket til Livsplan/Tasks (`fd71b7d` + `662b546`)
+## 🎯 Nyeste (2026-07-01 14:05) — Mock-ITEMS lakk til desktop-Livsplan (`dc93ed1`)
+
+**Trigger 1 (Jarvis-brief-audit):** Mayo: «sjekk om samme lekkasje finnes i
+Jarvis-briefen».
+Ingen lekkasje. `/brief/today` leser `SELECT title FROM crm_task ...`, men
+`crm_task`-tabellen ble droppet i Fase 5 (2026-06-19) → SELECT feiler stille
+(exception-svelget) → `tasks: []`. Curl-verifisert: `"tasks": []`. Ingen
+jobb-meeting-actions kan lekke via `/brief/today`. TODO: morning_extras.py
+bør enten leses fra `item`-tabellen med `track=privat`-filter, eller så
+markeres denne SELECT-en som dead code og fjernes.
+
+**Trigger 2:** Mayo: «ligger mock-up test oppgaver som jeg ikke har opprettet
+f.eks dette Ringe rørlegger om badet».
+Rotårsak: `desktop.jsx:580` init-state var `useState(ITEMS.filter(...))` uten
+`IS_DEMO`-vakt. `ITEMS` er mock-seed fra `data.js` («Ringe rørlegger om
+badet», «Planlegg helgetur med familien»). `app.jsx` (mobile) hadde
+allerede `IS_DEMO ? ITEMS : []` fra tidligere fix, men desktop arvet aldri
+den — port fra Babel-standalone la aldri vakten inn.
+
+Fix: `useState(IS_DEMO ? ITEMS.filter(...) : [])` — speiler mobile.
+
+Playwright-verifisering (desktop + mobile × 3 sider): alle 6 kombinasjoner
+`found: []` — 0 mock-titler i DOM.
+
+DB-cleanup: slettet 2 av mine egne Playwright-test-items
+(`DESKTOP-TEST-parent-item`, `PW-ADD-target`). Mayos egne ekte notat-items
+(«Kjøp q10», «kdjkwqldjkwqjldjwq») lot jeg stå.
+
+## 🎯 Forrige (2026-07-01 13:45) — Obs BYGG-tasks lekket til Livsplan/Tasks (`fd71b7d` + `662b546`)
 
 **Trigger:** Mayo: «det ligger masse obs bygg oppgaver fra møter i
 livsplanlegger. det skal ikke skje. rydd opp og sørg for at det aldri skjer»
