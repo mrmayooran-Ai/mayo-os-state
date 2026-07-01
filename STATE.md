@@ -4,9 +4,56 @@
 > Planleggeren (claude.ai) leser denne FØRST i hver økt, via **privat speil** `mayo-os-state` (GitHub-connector — repoet er privat, ikke lenger rå public-URL).
 > Aldri secrets/PII her — kun `<SET>`-markører.
 
-**Sist oppdatert:** 2026-07-01 12:10 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.67 Subtask-glitch fikset PÅ BÅDE mobil + desktop (`b7ef35e` + `e212e15`)
+**Sist oppdatert:** 2026-07-01 12:45 UTC · **Av:** Claude (terminal, mayo-ai-os) · **Versjon:** v0.68 Subtask-glitch endelig løst på desktop (`d9f6baa`)
 
-## 🎯 Nyeste (2026-07-01 12:10) — Subtask-glitch: desktop trengte egen fix (`e212e15`)
+## 🎯 Nyeste (2026-07-01 12:45) — Subtask-glitch runde 2: `addSub` upserter direkte (`d9f6baa`)
+
+**Trigger:** Mayo etter `e212e15`: «virker på iphone, ikke desktop»
+
+### Rotårsak (runde 2 — POST OK men state-update failer)
+Playwright-diagnose desktop 1440×900:
+- ✅ POST `/items/{id}/subtasks` kalt med korrekt body
+- ✅ Backend 200 OK
+- ✅ Input tømmes (`setNewSub('')` fyrer)
+- ❌ Optimistic subtask vises aldri i DOM
+
+`patch()` i `item.jsx:507` bruker `ctx.items.find(x => x.id === item.id)`
++ `ctx.setItems(list => list.map(x => x.id === item.id ? after : x))`.
+Hvis parent-raden ikke er i `ctx.items` når patch kjører (React state-timing
+mellom `openItem`-fetch og modal-render), matcher `.map()` ingen rader →
+`setItems` no-op → optimistic forsvinner.
+
+### Fix
+Nytt `_upsertSubs`-helper som bypasser `patch()`:
+```js
+const _upsertSubs = (nextSubsFn) => {
+  ctx.setItems(list => {
+    const idx = list.findIndex(x => x.id === item.id);
+    const cur = idx >= 0 ? list[idx] : { ...item };
+    const nextSubs = nextSubsFn(cur.subtasks || []);
+    const nextRow = { ...cur, subtasks: nextSubs, real: cur.real ?? isReal ?? true };
+    if (idx >= 0) { const next = list.slice(); next[idx] = nextRow; return next; }
+    return [...list, nextRow];  // legg til hvis manglet
+  });
+};
+```
+`addSub` bruker nå `_upsertSubs` i stedet for `patch()`. Optimistic vises
+umiddelbart, server-svar bytter `tempId` → `server-id`, feil rydder opp.
+
+### Verifisering
+Playwright headless 1440×900:
+```
+[response] 200 /items/{uuid}/subtasks
+POST /items/{uuid}/subtasks body={"title":"PW-SUB"}
+input value after enter: ""
+has PW-SUB in dom: true  ← ✅
+```
+
+### TODO (samme mønster kan gjelde)
+- `deleteSub`, `toggleSub`, `patchSub` bruker fortsatt `patch()` — kan trenge samme fix
+- `addSubInLane` (board-mode) må sjekkes hvis Mayo ser samme glitch der
+
+## 🎯 Forrige (2026-07-01 12:10) — Subtask-glitch: desktop trengte egen fix (`e212e15`)
 
 **Trigger:** Mayo etter mobil-fix `b7ef35e`: «testet på desktop virker ikke»
 
